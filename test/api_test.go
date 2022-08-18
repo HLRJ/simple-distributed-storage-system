@@ -11,7 +11,7 @@ import (
 )
 
 func TestSimplePut(t *testing.T) {
-	go namenode.Setup()
+	go namenode.NewNameNodeServer().Setup()
 
 	time.Sleep(time.Second)
 
@@ -30,7 +30,7 @@ func TestSimplePut(t *testing.T) {
 }
 
 func TestSimpleGet(t *testing.T) {
-	go namenode.Setup()
+	go namenode.NewNameNodeServer().Setup()
 
 	time.Sleep(time.Second)
 

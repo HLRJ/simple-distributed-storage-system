@@ -7,6 +7,8 @@ option go_package = "../protos";
 service DataNode {
     rpc Read(ReadRequest) returns (ReadReply);
     rpc Write(WriteRequest) returns (WriteReply);
+    rpc Remove(RemoveRequest) returns (RemoveReply);
+    rpc HeartBeat(HeartBeatRequest) returns (HeartBeatReply);
 }
 
 message ReadRequest {
@@ -21,3 +23,11 @@ message WriteRequest {
     bytes data = 2;
 }
 message WriteReply {}
+
+message RemoveRequest {
+    bytes uuid = 1;
+}
+message RemoveReply {}
+
+message HeartBeatRequest {}
+message HeartBeatReply {}
