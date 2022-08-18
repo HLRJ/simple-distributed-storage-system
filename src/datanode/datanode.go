@@ -2,90 +2,63 @@ package datanode
 
 import (
 	"context"
-	log "github.com/sirupsen/logrus"
-	"github.com/syndtr/goleveldb/leveldb"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"net"
+	"log"
 	"os"
-	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/protos"
 )
 
-type dataNodeServer struct {
-	protos.DataNodeServer
-	blockSize uint64
-	db        *leveldb.DB
-	address   string
+const LocalFileSystemRoot string = "/tmp/gfs/chunks/"
+
+type DataServer struct {
+	protos.UnimplementedDataserverServer
 }
 
-func (s *dataNodeServer) Read(ctx context.Context, in *protos.ReadRequest) (*protos.ReadReply, error) {
-	log.Infof("datanode server %v read %v", s.address, in.Uuid)
-	data, err := s.db.Get(in.Uuid, nil)
-	if err != nil {
-		return nil, err
-	}
-	return &protos.ReadReply{Data: data}, nil
+func (c *DataServer) GetUuidPath(ctx context.Context, req *protos.UuidRequest) (*protos.UuidResponse, error) {
+	FilePath := LocalFileSystemRoot + string(req.GetChunkuuid())
+	return &protos.UuidResponse{FilePath: FilePath}, nil
 }
 
-func (s *dataNodeServer) Write(ctx context.Context, in *protos.WriteRequest) (*protos.WriteReply, error) {
-	log.Infof("datanode server %v write %v - %v", s.address, in.Uuid, in.Data)
-	err := s.db.Put(in.Uuid, in.Data, nil)
-	if err != nil {
-		return nil, err
+func (c *DataServer) WriteChunk(ctx context.Context, req *protos.WriteChunkRequest) (*protos.WriteChunkResponse, error) {
+	filepath, errUUID := c.GetUuidPath(context.Background(), req.UuidRequest)
+	if errUUID != nil {
+		log.Fatalf("failed to get uuidPath: %v", errUUID)
+		return &protos.WriteChunkResponse{Message: "failed to get uuidPath"}, errUUID
 	}
-	return &protos.WriteReply{}, nil
+
+	fileStream, errStream := os.Create(filepath.GetFilePath())
+
+	if errStream != nil {
+		log.Fatalf("failed to create a fileStream: %v", errStream)
+		return &protos.WriteChunkResponse{Message: "ffailed to create a fileStream"}, errStream
+	}
+	defer fileStream.Close()
+	_, errWrite := fileStream.Write(req.GetChunk())
+
+	if errWrite != nil {
+		log.Fatalf("failed to write fileStream to memory:%v", errWrite)
+		return &protos.WriteChunkResponse{Message: "failed to write fileStream to memory"}, errWrite
+	}
+	return &protos.WriteChunkResponse{Message: "success to writeChunk"}, nil
+
 }
 
-func NewDataNodeServer(address string) *dataNodeServer {
-	db, err := leveldb.OpenFile(os.TempDir()+"/"+address, nil)
-	if err != nil {
-		log.Panic(err)
+func (c *DataServer) ReadChunk(ctx context.Context, req *protos.ReadChunkRequest) (*protos.ReadChunkResponse, error) {
+	filepath, errUUID := c.GetUuidPath(context.Background(), req.UuidRequest)
+	if errUUID != nil {
+		log.Fatalf("failed to get uuidPath: %v", errUUID)
+		return &protos.ReadChunkResponse{Chunk: []byte("failed to get uuidPath")}, errUUID
 	}
-	return &dataNodeServer{
-		address: address,
-		db:      db,
+	fileStream, errStream := os.ReadFile(filepath.GetFilePath())
+	if errStream != nil {
+		log.Fatalf("failed to create a fileStream: %v", errStream)
+		return &protos.ReadChunkResponse{Chunk: []byte("failed to read a fileStream")}, errStream
 	}
+
+	return &protos.ReadChunkResponse{Chunk: fileStream}, nil
 }
 
-func (s *dataNodeServer) Setup() {
-	// setup datanode server
-	log.Infof("starting datanode server at %v", s.address)
-	listener, err := net.Listen("tcp", s.address)
-	if err != nil {
-		log.Panic(err)
-	}
-	server := grpc.NewServer()
-	protos.RegisterDataNodeServer(server, s)
-
-	go func() {
-		err = server.Serve(listener)
-		if err != nil {
-			log.Panic(err)
-		}
-	}()
-
-	// connect to namenode
-	conn, err := grpc.Dial(consts.NameNodeServerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Panic(err)
-	}
-	defer func(conn *grpc.ClientConn) {
-		err := conn.Close()
-		if err != nil {
-			log.Panic(err)
-		}
-	}(conn)
-
-	client := protos.NewNameNodeClient(conn)
-	reply, err := client.RegisterDataNode(context.Background(), &protos.RegisterDataNodeRequest{Address: s.address})
-	if err != nil {
-		log.Panic(err)
-	}
-
-	// set block size
-	s.blockSize = reply.BlockSize
-
-	// blocked here
-	select {}
+//将DataServer结构体供外部调用
+func MakeServer() *DataServer {
+	Server := &DataServer{}
+	return Server
 }
