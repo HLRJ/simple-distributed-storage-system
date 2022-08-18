@@ -3,3 +3,18 @@ syntax = "proto3";
 package protos;
 
 option go_package = "../protos";
+
+service NameNode {
+  rpc GetBlockSize(GetBlockSizeRequest) returns (GetBlockSizeReply) {}
+  rpc RegisterDataNode(RegisterDataNodeRequest) returns (RegisterDataNodeReply) {}
+}
+
+message GetBlockSizeRequest {}
+message GetBlockSizeReply {
+  uint64 size = 1;
+}
+
+message RegisterDataNodeRequest {
+  string address = 1;
+}
+message RegisterDataNodeReply {}

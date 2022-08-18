@@ -12,7 +12,7 @@ type helloServer struct {
 	protos.UnimplementedGreeterServer
 }
 
-func (s helloServer) SayHello(ctx context.Context, req *protos.HelloRequest) (res *protos.HelloReply, err error) {
+func (s *helloServer) SayHello(ctx context.Context, req *protos.HelloRequest) (res *protos.HelloReply, err error) {
 	return &protos.HelloReply{Message: fmt.Sprintf("hello %v", req.GetName())}, nil
 }
 
