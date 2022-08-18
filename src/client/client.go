@@ -6,6 +6,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"io/ioutil"
+	"os"
 	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/protos"
 	"simple-distributed-storage-system/src/utils"
@@ -62,6 +63,20 @@ func (c *client) create(remotePath string, size uint64) {
 	c.blockSize = reply.BlockSize
 }
 
+func (c *client) open(remotePath string) int {
+	// open file
+	reply, err := c.nameNode.Open(context.Background(), &protos.OpenRequest{
+		Path: remotePath,
+	})
+	if err != nil {
+		log.Panic(err)
+	}
+
+	// set block size
+	c.blockSize = reply.BlockSize
+	return int(reply.Blocks)
+}
+
 func (c *client) Put(localPath string, remotePath string) {
 	// read file
 	data, err := ioutil.ReadFile(localPath)
@@ -98,5 +113,62 @@ func (c *client) Put(localPath string, remotePath string) {
 				log.Panic(err)
 			}
 		}
+	}
+}
+
+func (c *client) Get(remotePath string, localPath string) {
+	var data []byte
+
+	blocks := c.open(remotePath)
+	for i := 0; i < blocks; i++ {
+		// get block locs
+		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
+			Path:  remotePath,
+			Index: uint64(i),
+		})
+		if err != nil {
+			log.Panic(err)
+		}
+
+		success := false
+		for _, addr := range reply.Addrs {
+			// connect to datanode and read data
+			datanode, conn := connectDataNode(addr)
+			reply, err := datanode.Read(context.Background(), &protos.ReadRequest{
+				Uuid: reply.Uuid,
+			})
+
+			closeConn := func() {
+				err = conn.Close()
+				if err != nil {
+					log.Panic(err)
+				}
+			}
+
+			if err == nil {
+				success = true
+				data = append(data, reply.Data...)
+				closeConn()
+				break
+			} else {
+				log.Warn(err)
+				closeConn()
+				continue
+			}
+		}
+
+		if !success {
+			log.Panic("data corrupted")
+		}
+	}
+
+	// write to local file
+	f, err := os.Create(localPath)
+	if err != nil {
+		log.Panic(err)
+	}
+	_, err = f.Write(data)
+	if err != nil {
+		log.Panic(err)
 	}
 }

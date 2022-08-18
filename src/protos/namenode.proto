@@ -8,6 +8,7 @@ service NameNode {
   rpc GetBlockAddrs(GetBlockAddrsRequest) returns (GetBlockAddrsReply) {}
   rpc RegisterDataNode(RegisterDataNodeRequest) returns (RegisterDataNodeReply) {}
   rpc Create(CreateRequest) returns (CreateReply) {}
+  rpc Open(OpenRequest) returns (OpenReply) {}
 }
 
 message GetBlockAddrsRequest {
@@ -32,4 +33,12 @@ message CreateRequest {
 }
 message CreateReply {
   uint64 blockSize = 1;
+}
+
+message OpenRequest {
+  string path = 1;
+}
+message OpenReply {
+  uint64 blockSize = 1;
+  uint64 blocks = 2;
 }

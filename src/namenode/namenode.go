@@ -127,6 +127,20 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 	return &protos.CreateReply{BlockSize: blockSize}, nil
 }
 
+func (s *nameNodeServer) Open(ctx context.Context, in *protos.OpenRequest) (*protos.OpenReply, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	log.Infof("namenode server %v open file %v", consts.NameNodeServerAddr, in.Path)
+
+	uuids, ok := s.FileToUUIDs[in.Path]
+	if !ok {
+		return nil, errors.New(fmt.Sprintf("file %v not exists", in.Path))
+	}
+
+	return &protos.OpenReply{BlockSize: blockSize, Blocks: uint64(len(uuids))}, nil
+}
+
 func (s *nameNodeServer) fetchDataNodeLocs() ([]int, error) {
 	index := 0
 	locs := make([]int, len(s.dataNodeLocToAddr))
