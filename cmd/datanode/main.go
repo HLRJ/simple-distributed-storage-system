@@ -1,13 +1,23 @@
 package main
 
 import (
-	"flag"
+	"log"
+	"net"
+	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/datanode"
+	"simple-distributed-storage-system/src/protos"
+
+	"google.golang.org/grpc"
 )
 
-var dataNodeServerAddr = flag.String("addr", "localhost:9000", "input this datanode address")
-
 func main() {
-	flag.Parse()
-	datanode.NewDataNodeServer(*dataNodeServerAddr).Setup()
+	lis, err := net.Listen("tcp", consts.DataNodeServerAddr)
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+	s := grpc.NewServer()
+
+	DataServer := datanode.MakeServer()
+	protos.RegisterDataserverServer(s, DataServer)
+	s.Serve(lis)
 }
