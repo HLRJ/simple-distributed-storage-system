@@ -4,12 +4,30 @@ package protos;
 
 option go_package = "../protos";
 
-service DataNode {
-  rpc WriteData(WriteDataRequest) returns (WriteDataReply);
+message WriteChunkRequest{
+    int64 chunkuuid=1;
+    bytes chunk=2;
+    UuidRequest uuidRequest=3;   
+}
+message WriteChunkResponse{
+    string message=1;
+}
+message ReadChunkRequest{
+    int64 chunkuuid=1;
+    UuidRequest uuidRequest=2;
+}
+message ReadChunkResponse{
+    bytes chunk=1;
+}
+message UuidRequest{
+    int64 chunkuuid=1;
+}
+message UuidResponse{
+    string file_path=1;
 }
 
-message WriteDataRequest {
-  bytes uuid = 1;
-  bytes data = 2;
+service dataserver{
+    rpc WriteChunk(WriteChunkRequest) returns(WriteChunkResponse);
+    rpc ReadChunk(ReadChunkRequest) returns(ReadChunkResponse);
+    rpc GetUuidPath(UuidRequest) returns(UuidResponse);
 }
-message WriteDataReply {}
