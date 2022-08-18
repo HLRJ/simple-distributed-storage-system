@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package protos;
+
+option go_package = "../protos";
+
+service DataNode {
+    rpc Read(ReadRequest) returns (ReadReply);
+    rpc Write(WriteRequest) returns (WriteReply);
+}
+
+message ReadRequest {
+    bytes uuid = 1;
+}
+message ReadReply {
+    bytes data = 1;
+}
+
+message WriteRequest {
+    bytes uuid = 1;
+    bytes data = 2;
+}
+message WriteReply {}

@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package protos;
+
+option go_package = "../protos";
+
+service NameNode {
+  rpc GetBlockAddrs(GetBlockAddrsRequest) returns (GetBlockAddrsReply) {}
+  rpc RegisterDataNode(RegisterDataNodeRequest) returns (RegisterDataNodeReply) {}
+  rpc Create(CreateRequest) returns (CreateReply) {}
+  rpc Open(OpenRequest) returns (OpenReply) {}
+}
+
+message GetBlockAddrsRequest {
+  string path = 1;
+  uint64 index = 2;
+}
+message GetBlockAddrsReply {
+  repeated string addrs = 1;
+  bytes uuid = 2;
+}
+
+message RegisterDataNodeRequest {
+  string address = 1;
+}
+message RegisterDataNodeReply {
+  uint64 blockSize = 1;
+}
+
+message CreateRequest {
+  string path = 1;
+  uint64 size = 2;
+}
+message CreateReply {
+  uint64 blockSize = 1;
+}
+
+message OpenRequest {
+  string path = 1;
+}
+message OpenReply {
+  uint64 blockSize = 1;
+  uint64 blocks = 2;
+}
