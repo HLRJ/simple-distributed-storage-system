@@ -1,5 +1,8 @@
 .PHONY: hello all clean
 
+SDSS-ctl:
+	go build -o output/SDSS-ctl cmd/ctl/main.go
+
 all: proto
 	go build -o bin/namenode cmd/namenode/main.go
 	go build -o bin/datanode cmd/datanode/main.go
