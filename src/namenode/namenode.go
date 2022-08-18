@@ -18,7 +18,7 @@ import (
 
 const (
 	replicaFactor        = 3
-	blockSize     uint64 = 1024
+	blockSize     uint64 = 64
 )
 
 type nameNodeServer struct {
@@ -128,22 +128,24 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 }
 
 func (s *nameNodeServer) fetchDataNodeLocs() ([]int, error) {
-	origin := make([]int, len(s.dataNodeLocToAddr))
+	index := 0
+	locs := make([]int, len(s.dataNodeLocToAddr))
 	for loc := range s.dataNodeLocToAddr {
-		origin = append(origin, loc)
+		locs[index] = loc
+		index++
 	}
 
-	if len(origin) < replicaFactor {
+	if len(locs) < replicaFactor {
 		return nil, errors.New("insufficient datanode server")
 	}
 
 	rand.Seed(time.Now().Unix())
-	rand.Shuffle(len(origin), func(i int, j int) {
-		origin[i], origin[j] = origin[j], origin[i]
+	rand.Shuffle(len(locs), func(i int, j int) {
+		locs[i], locs[j] = locs[j], locs[i]
 	})
 
 	result := make([]int, 0, replicaFactor)
-	for index, value := range origin {
+	for index, value := range locs {
 		if index == replicaFactor {
 			break
 		}

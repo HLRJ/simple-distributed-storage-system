@@ -15,16 +15,26 @@ import (
 type dataNodeServer struct {
 	protos.DataNodeServer
 	blockSize uint64
-	kv        *leveldb.DB
+	db        *leveldb.DB
 	address   string
 }
 
-func (s *dataNodeServer) WriteData(ctx context.Context, in *protos.WriteDataRequest) (*protos.WriteDataReply, error) {
-	err := s.kv.Put(in.Uuid, in.Data, nil)
+func (s *dataNodeServer) Read(ctx context.Context, in *protos.ReadRequest) (*protos.ReadReply, error) {
+	log.Infof("datanode server %v read %v", s.address, in.Uuid)
+	data, err := s.db.Get(in.Uuid, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &protos.WriteDataReply{}, nil
+	return &protos.ReadReply{Data: data}, nil
+}
+
+func (s *dataNodeServer) Write(ctx context.Context, in *protos.WriteRequest) (*protos.WriteReply, error) {
+	log.Infof("datanode server %v write %v - %v", s.address, in.Uuid, in.Data)
+	err := s.db.Put(in.Uuid, in.Data, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &protos.WriteReply{}, nil
 }
 
 func NewDataNodeServer(address string) *dataNodeServer {
@@ -34,7 +44,7 @@ func NewDataNodeServer(address string) *dataNodeServer {
 	}
 	return &dataNodeServer{
 		address: address,
-		kv:      db,
+		db:      db,
 	}
 }
 

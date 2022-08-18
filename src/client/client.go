@@ -84,13 +84,14 @@ func (c *client) Put(localPath string, remotePath string) {
 		}
 
 		for _, addr := range reply.Addrs {
+			// connect to datanode and write data
 			datanode, conn := connectDataNode(addr)
-			_, err := datanode.WriteData(context.Background(), &protos.WriteDataRequest{
+			_, err := datanode.Write(context.Background(), &protos.WriteRequest{
 				Uuid: reply.Uuid,
 				Data: data[uint64(i)*c.blockSize : utils.Min(uint64(i+1)*c.blockSize, size)],
 			})
 			if err != nil {
-				return
+				log.Panic(err)
 			}
 			err = conn.Close()
 			if err != nil {
