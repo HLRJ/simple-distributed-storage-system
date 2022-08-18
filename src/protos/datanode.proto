@@ -5,5 +5,11 @@ package protos;
 option go_package = "../protos";
 
 service DataNode {
-
+  rpc WriteData(WriteDataRequest) returns (WriteDataReply);
 }
+
+message WriteDataRequest {
+  bytes uuid = 1;
+  bytes data = 2;
+}
+message WriteDataReply {}

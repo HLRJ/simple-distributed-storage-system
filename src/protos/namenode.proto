@@ -5,16 +5,31 @@ package protos;
 option go_package = "../protos";
 
 service NameNode {
-  rpc GetBlockSize(GetBlockSizeRequest) returns (GetBlockSizeReply) {}
+  rpc GetBlockAddrs(GetBlockAddrsRequest) returns (GetBlockAddrsReply) {}
   rpc RegisterDataNode(RegisterDataNodeRequest) returns (RegisterDataNodeReply) {}
+  rpc Create(CreateRequest) returns (CreateReply) {}
 }
 
-message GetBlockSizeRequest {}
-message GetBlockSizeReply {
-  uint64 size = 1;
+message GetBlockAddrsRequest {
+  string path = 1;
+  uint64 index = 2;
+}
+message GetBlockAddrsReply {
+  repeated string addrs = 1;
+  bytes uuid = 2;
 }
 
 message RegisterDataNodeRequest {
   string address = 1;
 }
-message RegisterDataNodeReply {}
+message RegisterDataNodeReply {
+  uint64 blockSize = 1;
+}
+
+message CreateRequest {
+  string path = 1;
+  uint64 size = 2;
+}
+message CreateReply {
+  uint64 blockSize = 1;
+}
