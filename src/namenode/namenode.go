@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"math/rand"
 	"net"
 	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/protos"
@@ -49,7 +48,7 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 
 	// get uuid
 	id := uuids[in.Index]
-	res, err := id.MarshalBinary()
+	bin, err := id.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +73,7 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 
 	return &protos.GetBlockAddrsReply{
 		Addrs: addrs,
-		Uuid:  res,
+		Uuid:  bin,
 	}, nil
 }
 
@@ -85,8 +84,7 @@ func (s *nameNodeServer) RegisterDataNode(ctx context.Context, in *protos.Regist
 	loc, ok := s.dataNodeAddrToLoc[in.Address]
 	if ok {
 		// delete outdated datanode server
-		delete(s.dataNodeAddrToLoc, in.Address)
-		delete(s.dataNodeLocToAddr, loc)
+		s.removeDataNodeServer(loc, in.Address)
 	}
 
 	// update addr <-> loc
@@ -125,7 +123,7 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 
 	// alloc locs for uuid
 	for _, id := range uuids {
-		locs, err := s.randomChooseLocs(replicaFactor)
+		locs, err := utils.RandomChooseLocs(s.fetchAllLocs(), replicaFactor)
 		if err != nil {
 			return nil, err
 		}
@@ -162,26 +160,73 @@ func (s *nameNodeServer) fetchAllLocs() []int {
 	return locs
 }
 
-func (s *nameNodeServer) randomChooseLocs(count int) ([]int, error) {
-	locs := s.fetchAllLocs()
+func (s *nameNodeServer) removeDataNodeServer(loc int, addr string) {
+	delete(s.dataNodeLocToAddr, loc)
+	delete(s.dataNodeAddrToLoc, addr)
+	s.dataMigration(loc)
+}
 
-	if len(locs) < count {
-		return nil, errors.New("insufficient datanode server")
-	}
+func (s *nameNodeServer) dataMigration(loc int) {
+	for id, locs := range s.UUIDToDataNodeLocs {
+		index := utils.ContainsLoc(locs, loc)
+		if index != -1 {
+			// fetch candidates
+			var candidates []int
+			for candidate := range s.dataNodeLocToAddr {
+				if utils.ContainsLoc(locs, candidate) != -1 {
+					candidates = append(candidates, candidate)
+				}
+			}
 
-	rand.Seed(time.Now().Unix())
-	rand.Shuffle(len(locs), func(i int, j int) {
-		locs[i], locs[j] = locs[j], locs[i]
-	})
+			res, err := utils.RandomChooseLocs(candidates, 1)
+			if err != nil {
+				log.Warn("unable to migrate data for %v", id)
+				continue
+			}
 
-	result := make([]int, 0, count)
-	for index, value := range locs {
-		if index == count {
-			break
+			addr, ok := s.dataNodeLocToAddr[res[0]]
+			if !ok {
+				log.Warn("unable to migrate data for %v", id)
+				continue
+			}
+
+			// connect to backup datanode server
+			datanode, conn := utils.ConnectToDataNode(addr)
+			bin, err := id.MarshalBinary()
+			if err != nil {
+				log.Warn(err)
+				log.Warn("unable to migrate data for %v", id)
+				continue
+			}
+
+			// read data
+			reply, err := datanode.Read(context.Background(), &protos.ReadRequest{Uuid: bin})
+			if err != nil {
+				log.Warn(err)
+				log.Warn("unable to migrate data for %v", id)
+				continue
+			}
+
+			// write data
+			_, err = datanode.Write(context.Background(), &protos.WriteRequest{Uuid: bin, Data: reply.Data})
+			if err != nil {
+				log.Warn(err)
+				log.Warn("unable to migrate data for %v", id)
+				continue
+			}
+
+			err = conn.Close()
+			if err != nil {
+				log.Warn(err)
+				continue
+			}
+
+			// modify UUIDToDataNodeLocs
+			locs = append(locs[:index], locs[index:]...)
+			locs = append(locs, res[0])
+			s.UUIDToDataNodeLocs[id] = locs // TODO: iterator maybe corrupted
 		}
-		result = append(result, value)
 	}
-	return result, nil
 }
 
 func (s *nameNodeServer) startHeartbeatTicker() {
@@ -197,8 +242,7 @@ func (s *nameNodeServer) startHeartbeatTicker() {
 					// delete unreachable datanode server
 					log.Warn(err)
 					log.Infof("namenode server %v find datanode %v unreachable", consts.NameNodeServerAddr, addr)
-					delete(s.dataNodeLocToAddr, loc)
-					delete(s.dataNodeAddrToLoc, addr)
+					s.removeDataNodeServer(loc, addr)
 				}
 				err = conn.Close()
 				if err != nil {
