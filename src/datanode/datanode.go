@@ -2,7 +2,12 @@ package datanode
 
 import (
 	"context"
+	"github.com/google/uuid"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"net"
 	"os"
+	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/protos"
 
 	log "github.com/sirupsen/logrus"
@@ -10,69 +15,88 @@ import (
 
 const LocalFileSystemRoot string = "/tmp/gfs/chunks/"
 
-type DataServer struct {
+type dataNodeServer struct {
 	protos.UnimplementedDataNodeServer
-  addr      string
-  blockSize uint64
+	addr      string
+	blockSize uint64
 }
 
 // 读文件
-func (c *DataServer) Read(ctx context.Context, req *protos.ReadRequest) (*protos.ReadReply, error) {
-	uuid := string(req.GetUuid())
-	log.Infof("start to read the file: %v", uuid)
-	filepath := LocalFileSystemRoot + uuid
-
-	fileStream, errStream := os.ReadFile(filepath)
-	if errStream != nil {
-		log.Panic("failed to open a file: %v", errStream)
-		return &protos.ReadReply{Data: []byte("failed to read a fileStream")}, errStream
+func (c *dataNodeServer) Read(ctx context.Context, req *protos.ReadRequest) (*protos.ReadReply, error) {
+	id := uuid.New()
+	err := id.UnmarshalBinary(req.Uuid)
+	if err != nil {
+		log.Panic(err)
 	}
-	log.Infof("successfully read the file: %v", uuid)
-	return &protos.ReadReply{Data: fileStream}, nil
+
+	log.Infof("start to read the file: %v", id.String())
+	filepath := LocalFileSystemRoot + id.String()
+
+	data, err := os.ReadFile(filepath)
+	if err != nil {
+		log.Panicf("failed to open a file: %v", err)
+		return nil, err
+	}
+	log.Infof("successfully read the file: %v", id.String())
+	return &protos.ReadReply{Data: data}, nil
 }
 
 // 写入文件到磁盘
-func (c *DataServer) Write(ctx context.Context, req *protos.WriteRequest) (*protos.WriteReply, error) {
-	uuid := string(req.GetUuid())
+func (c *dataNodeServer) Write(ctx context.Context, req *protos.WriteRequest) (*protos.WriteReply, error) {
+	id := uuid.New()
+	err := id.UnmarshalBinary(req.Uuid)
+	if err != nil {
+		log.Panic(err)
+	}
+
 	data := req.Data
-	log.Infof("start to write the file:%v", uuid)
-	filepath := LocalFileSystemRoot + uuid
+	log.Infof("start to write the file: %v", id.String())
+	filepath := LocalFileSystemRoot + id.String()
 
-	fileStream, errStream := os.Create(filepath)
-	if errStream != nil {
-		log.Panic("failed to create a file:%v", errStream)
+	file, err := os.Create(filepath)
+	if err != nil {
+		log.Panicf("failed to create a file: %v", err)
 	}
-	defer fileStream.Close()
+	defer file.Close()
 
-	_, errWrite := fileStream.Write(data)
+	_, errWrite := file.Write(data)
 	if errWrite != nil {
-		log.Panic("failed to write the file:%v", uuid)
+		log.Panicf("failed to write the file: %v", id.String())
 	}
-	log.Infof("successfully write the file: %v", uuid)
+	log.Infof("successfully write the file: %v", id.String())
 	return &protos.WriteReply{}, nil
 }
 
 // 返回心跳包
-func (c *DataServer) HeartBeat(ctx context.Context, in *protos.HeartBeatRequest) (*protos.HeartBeatReply, error) {
+func (c *dataNodeServer) HeartBeat(ctx context.Context, in *protos.HeartBeatRequest) (*protos.HeartBeatReply, error) {
 	return &protos.HeartBeatReply{}, nil
 }
 
 // 删除文件
-func (c *DataServer) Remove(ctx context.Context, req *protos.RemoveRequest) (*protos.RemoveReply, error) {
-	uuid := string(req.GetUuid())
-	log.Infof("start to remove the file:%v", uuid)
-	filepath := LocalFileSystemRoot + uuid
+func (c *dataNodeServer) Remove(ctx context.Context, req *protos.RemoveRequest) (*protos.RemoveReply, error) {
+	id := uuid.New()
+	err := id.UnmarshalBinary(req.Uuid)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	log.Infof("start to remove the file: %v", id.String())
+	filepath := LocalFileSystemRoot + id.String()
 
 	errRemove := os.Remove(filepath)
 	if errRemove != nil {
-		log.Panic("failed to remove the file:%v", uuid)
+		log.Panicf("failed to remove the file: %v", id.String())
 	} else {
-		log.Infof("successfully remove the file:%v", uuid)
+		log.Infof("successfully remove the file: %v", id.String())
 	}
 	return &protos.RemoveReply{}, nil
 }
 
 func NewDataNodeServer(addr string) *dataNodeServer {
+	err := os.MkdirAll(LocalFileSystemRoot, os.ModePerm)
+	if err != nil {
+		log.Panic(err)
+	}
 	return &dataNodeServer{
 		addr: addr,
 	}
