@@ -33,12 +33,18 @@ func TestCrashOneDataNodeServer(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	c.Put(localPath, remotePath)
+	err = c.Put(localPath, remotePath)
+	if err != nil {
+		t.Error(err)
+	}
 
 	cancelFunc()
 	time.Sleep(5 * time.Second)
 
-	c.Get(remotePath, localCopyPath)
+	err = c.Get(remotePath, localCopyPath)
+	if err != nil {
+		t.Error(err)
+	}
 	dataCopy, err := ioutil.ReadFile(localCopyPath)
 	if err != nil {
 		panic(err)
@@ -46,7 +52,10 @@ func TestCrashOneDataNodeServer(t *testing.T) {
 	if !bytes.Equal(dataCopy, data) {
 		panic("inconsistent data")
 	}
-	c.CloseClient()
+	err = c.CloseClient()
+	if err != nil {
+		t.Error(err)
+	}
 }
 
 func TestCrashOneDataNodeServerAndReconnect(t *testing.T) {
@@ -70,14 +79,20 @@ func TestCrashOneDataNodeServerAndReconnect(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	c.Put(localPath, remotePath)
+	err = c.Put(localPath, remotePath)
+	if err != nil {
+		t.Error(err)
+	}
 
 	cancelFunc()
 	time.Sleep(time.Second)
 	go datanode.NewDataNodeServer("localhost:9002").Setup(context.Background())
 	time.Sleep(5 * time.Second)
 
-	c.Get(remotePath, localCopyPath)
+	err = c.Get(remotePath, localCopyPath)
+	if err != nil {
+		t.Error(err)
+	}
 	dataCopy, err := ioutil.ReadFile(localCopyPath)
 	if err != nil {
 		panic(err)
@@ -85,7 +100,10 @@ func TestCrashOneDataNodeServerAndReconnect(t *testing.T) {
 	if !bytes.Equal(dataCopy, data) {
 		panic("inconsistent data")
 	}
-	c.CloseClient()
+	err = c.CloseClient()
+	if err != nil {
+		t.Error(err)
+	}
 }
 
 func TestCrashNameNodeServer(t *testing.T) { // TODO
@@ -104,8 +122,14 @@ func TestCrashNameNodeServer(t *testing.T) { // TODO
 	remotePath := "/doc/README.md"
 
 	c := client.NewClient()
-	c.Put(localPath, remotePath)
-	c.CloseClient()
+	err := c.Put(localPath, remotePath)
+	if err != nil {
+		t.Error(err)
+	}
+	err = c.CloseClient()
+	if err != nil {
+		t.Error(err)
+	}
 
 	cancelFunc()
 

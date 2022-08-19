@@ -68,9 +68,10 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 	for loc, ok := range locsInfo {
 		switch in.OpType {
 		// existed
-		case protos.GetBlockAddrsRequestOpType_OP_GET:
-			fallthrough
 		case protos.GetBlockAddrsRequestOpType_OP_REMOVE:
+			delete(s.fileToUUIDs, in.Path)
+			fallthrough
+		case protos.GetBlockAddrsRequestOpType_OP_GET:
 			if ok {
 				addr, ok := s.dataNodeLocToAddr[loc]
 				if ok {
@@ -110,7 +111,7 @@ func (s *nameNodeServer) RegisterDataNode(ctx context.Context, in *protos.Regist
 	}()
 
 	targetLoc := s.dataNodeMaxLoc
-	log.Infof("namenode server %v tryingt to register datanode server %v with loc %v",
+	log.Infof("namenode server %v trying to register datanode server %v with loc %v",
 		consts.NameNodeServerAddr, in.Address, targetLoc)
 
 	loc, ok := s.dataNodeAddrToLoc[in.Address]
