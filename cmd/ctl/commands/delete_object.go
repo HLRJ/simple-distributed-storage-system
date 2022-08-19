@@ -16,11 +16,11 @@ var delObjectCmd = &cobra.Command{
 		client := client.NewClient()
 		err := client.Remove(args[0])
 		if err != nil {
-			log.Warn(err)
+			log.Panic(err)
 		}
 		err = client.CloseClient()
 		if err != nil {
-			log.Warn(err)
+			log.Panic(err)
 		}
 	},
 }

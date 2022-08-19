@@ -16,11 +16,11 @@ var getObjectCmd = &cobra.Command{
 		client := client.NewClient()
 		err := client.Get(args[0], args[1])
 		if err != nil {
-			log.Warn(err)
+			log.Panic(err)
 		}
 		err = client.CloseClient()
 		if err != nil {
-			log.Warn(err)
+			log.Panic(err)
 		}
 	},
 }

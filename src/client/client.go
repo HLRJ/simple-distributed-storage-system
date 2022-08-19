@@ -67,7 +67,7 @@ func (c *client) open(remotePath string) (int, error) {
 	return int(reply.Blocks), nil
 }
 
-func (c *client) Get(remotePath string, localPath string) error {
+func (c *client) Get(remotePath, localPath string) error {
 	var data []byte
 
 	blocks, err := c.open(remotePath)
@@ -78,9 +78,9 @@ func (c *client) Get(remotePath string, localPath string) error {
 	for i := 0; i < blocks; i++ {
 		// get block locs
 		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
-			Path:   remotePath,
-			Index:  uint64(i),
-			OpType: protos.GetBlockAddrsRequestOpType_OP_GET,
+			Path:  remotePath,
+			Index: uint64(i),
+			Type:  protos.GetBlockAddrsRequestType_OP_GET,
 		})
 		if err != nil {
 			return err
@@ -130,7 +130,7 @@ func (c *client) Get(remotePath string, localPath string) error {
 	return nil
 }
 
-func (c *client) Put(localPath string, remotePath string) error {
+func (c *client) Put(localPath, remotePath string) error {
 	// read file
 	data, err := ioutil.ReadFile(localPath)
 	if err != nil {
@@ -147,9 +147,9 @@ func (c *client) Put(localPath string, remotePath string) error {
 	for i := 0; i < blocks; i++ {
 		// get block locs
 		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
-			Path:   remotePath,
-			Index:  uint64(i),
-			OpType: protos.GetBlockAddrsRequestOpType_OP_PUT,
+			Path:  remotePath,
+			Index: uint64(i),
+			Type:  protos.GetBlockAddrsRequestType_OP_PUT,
 		})
 		if err != nil {
 			return err
@@ -202,9 +202,9 @@ func (c *client) Remove(remotePath string) error {
 	for i := 0; i < blocks; i++ {
 		// get block locs
 		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
-			Path:   remotePath,
-			Index:  uint64(i),
-			OpType: protos.GetBlockAddrsRequestOpType_OP_REMOVE,
+			Path:  remotePath,
+			Index: uint64(i),
+			Type:  protos.GetBlockAddrsRequestType_OP_REMOVE,
 		})
 		if err != nil {
 			return err
@@ -244,5 +244,21 @@ func (c *client) Remove(remotePath string) error {
 		}
 	}
 
+	return nil
+}
+
+func (c *client) Stat(remotePath string) error {
+	return nil
+}
+
+func (c *client) Mkdir(remotePath string) error {
+	return nil
+}
+
+func (c *client) Rename(remotePathSrc, remotePathDest string) error {
+	return nil
+}
+
+func (c *client) List(remotePath string) error {
 	return nil
 }

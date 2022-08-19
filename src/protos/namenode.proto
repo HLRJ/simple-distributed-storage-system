@@ -10,9 +10,10 @@ service NameNode {
   rpc Create(CreateRequest) returns (CreateReply) {}
   rpc Open(OpenRequest) returns (OpenReply) {}
   rpc LocsValidityNotify(LocsValidityNotifyRequest) returns (LocsValidityNotifyReply) {}
+  rpc FetchFileInfo(FetchFileInfoRequest) returns (FetchFileInfoReply) {}
 }
 
-enum GetBlockAddrsRequestOpType {
+enum GetBlockAddrsRequestType {
   OP_GET = 0;
   OP_PUT = 1;
   OP_REMOVE = 2;
@@ -20,7 +21,7 @@ enum GetBlockAddrsRequestOpType {
 message GetBlockAddrsRequest {
   string path = 1;
   uint64 index = 2;
-  GetBlockAddrsRequestOpType opType = 3;
+  GetBlockAddrsRequestType type = 3;
 }
 message GetBlockAddrsReply {
   repeated string addrs = 1;
@@ -55,3 +56,14 @@ message LocsValidityNotifyRequest {
   map<string, bool> validity = 2;
 }
 message LocsValidityNotifyReply {}
+
+message FileInfo {
+  string name = 1;
+  uint64 size = 2;
+}
+message FetchFileInfoRequest {
+  string path = 1;
+}
+message FetchFileInfoReply {
+  repeated FileInfo infos = 1;
+}
