@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	replicaFactor        = 3
-	blockSize     uint64 = 64
+	replicaFactor                    = 3
+	nameNodeHeartbeatDuration        = 5
+	blockSize                 uint64 = 64
 )
 
 type nameNodeServer struct {
@@ -30,6 +31,9 @@ type nameNodeServer struct {
 
 	fileToUUIDs        map[string][]uuid.UUID
 	uuidToDataNodeLocs map[uuid.UUID][]int
+
+	registrationContext bool
+	registrationAddr    string
 }
 
 func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockAddrsRequest) (*protos.GetBlockAddrsReply, error) {
@@ -79,21 +83,37 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 
 func (s *nameNodeServer) RegisterDataNode(ctx context.Context, in *protos.RegisterDataNodeRequest) (*protos.RegisterDataNodeReply, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.registrationContext = true
+	s.registrationAddr = in.Address
+	defer func() {
+		s.registrationAddr = ""
+		s.registrationContext = false
+		s.mu.Unlock()
+	}()
+
+	targetLoc := s.dataNodeMaxLoc
+	log.Infof("namenode server %v tryingt to register datanode server %v with loc %v",
+		consts.NameNodeServerAddr, in.Address, targetLoc)
 
 	loc, ok := s.dataNodeAddrToLoc[in.Address]
 	if ok {
 		// delete outdated datanode server
-		s.removeDataNodeServer(loc, in.Address)
+		// TODO: loose conditions
+		if !s.removeDataNodeServer(loc, in.Address) { // active remove
+			log.Warnf("namenode server %v cannot register datanode server %v with loc %v",
+				consts.NameNodeServerAddr, in.Address, targetLoc)
+			return nil, errors.New("registration failure")
+		}
 	}
 
 	// update addr <-> loc
-	s.dataNodeAddrToLoc[in.Address] = s.dataNodeMaxLoc
-	s.dataNodeLocToAddr[s.dataNodeMaxLoc] = in.Address
+	s.dataNodeAddrToLoc[in.Address] = targetLoc
+	s.dataNodeLocToAddr[targetLoc] = in.Address
 
-	log.Infof("namenode server %v register datanode server %v with loc %v",
-		consts.NameNodeServerAddr, in.Address, s.dataNodeMaxLoc)
+	log.Infof("namenode server %v successfully registering datanode server %v with loc %v",
+		consts.NameNodeServerAddr, in.Address, targetLoc)
 
+	// increase max loc
 	s.dataNodeMaxLoc++
 
 	return &protos.RegisterDataNodeReply{BlockSize: blockSize}, nil
@@ -157,18 +177,27 @@ func (s *nameNodeServer) fetchAllLocs() []int {
 		locs[index] = loc
 		index++
 	}
+	if s.registrationContext {
+		locs = append(locs, s.dataNodeMaxLoc)
+	}
 	return locs
 }
 
-func (s *nameNodeServer) removeDataNodeServer(loc int, addr string) {
-	log.Infof("namenode server %v remove datanode server %v with loc %v", consts.NameNodeServerAddr, addr, loc)
+func (s *nameNodeServer) removeDataNodeServer(loc int, addr string) bool {
+	log.Infof("namenode server %v trying to remove datanode server %v with loc %v", consts.NameNodeServerAddr, addr, loc)
 
 	// start data migration
 	if s.dataMigration(loc) {
 		// delete addr <-> loc
 		delete(s.dataNodeLocToAddr, loc)
 		delete(s.dataNodeAddrToLoc, addr)
+
+		log.Infof("namenode server %v successfully removing datanode server %v with loc %v", consts.NameNodeServerAddr, addr, loc)
+		return true
 	}
+
+	log.Warnf("namenode server %v cannot remove datanode server %v with loc %v", consts.NameNodeServerAddr, addr, loc)
+	return false
 }
 
 func (s *nameNodeServer) dataMigration(loc int) bool {
@@ -199,21 +228,26 @@ func (s *nameNodeServer) dataMigration(loc int) bool {
 				break
 			}
 
+			// get loc and addr
 			fromLoc := locs[(index+1)%len(locs)]
-			toLoc := res[0]
-
-			// get addr
 			fromAddr, ok := s.dataNodeLocToAddr[fromLoc]
 			if !ok {
 				log.Warnf("unable to migrate data for %v", id)
 				failed = true
 				break
 			}
-			toAddr, ok := s.dataNodeLocToAddr[toLoc]
-			if !ok {
-				log.Warnf("unable to migrate data for %v", id)
-				failed = true
-				break
+
+			toLoc := res[0]
+			var toAddr string
+			if toLoc == s.dataNodeMaxLoc {
+				toAddr = s.registrationAddr
+			} else {
+				toAddr, ok = s.dataNodeLocToAddr[toLoc]
+				if !ok {
+					log.Warnf("unable to migrate data for %v", id)
+					failed = true
+					break
+				}
 			}
 
 			log.Infof("uuid %v -> copy from %v to %v", id, fromAddr, toAddr)
@@ -275,7 +309,7 @@ func (s *nameNodeServer) startHeartbeatTicker(ctx context.Context) {
 		case <-ctx.Done():
 			log.Infof("namenode server %v stop heartbeat", consts.NameNodeServerAddr)
 			return
-		case <-time.After(5 * time.Second):
+		case <-time.After(nameNodeHeartbeatDuration * time.Second):
 			s.mu.Lock()
 			log.Infof("namenode server %v start heartbeat ticker", consts.NameNodeServerAddr)
 			locs := s.fetchAllLocs()
@@ -288,7 +322,7 @@ func (s *nameNodeServer) startHeartbeatTicker(ctx context.Context) {
 						// delete unreachable datanode server
 						log.Warn(err)
 						log.Infof("namenode server %v find datanode %v unreachable", consts.NameNodeServerAddr, addr)
-						s.removeDataNodeServer(loc, addr)
+						s.removeDataNodeServer(loc, addr) // passive remove
 					}
 					err = conn.Close()
 					if err != nil {

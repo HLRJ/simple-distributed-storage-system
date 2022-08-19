@@ -9,6 +9,7 @@ import (
 	"os"
 	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/protos"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -131,9 +132,12 @@ func (s *dataNodeServer) Setup(ctx context.Context) {
 	}(conn)
 
 	client := protos.NewNameNodeClient(conn)
+retry:
 	reply, err := client.RegisterDataNode(context.Background(), &protos.RegisterDataNodeRequest{Address: s.addr})
 	if err != nil {
-		log.Panic(err)
+		log.Warn(err)
+		time.Sleep(time.Second)
+		goto retry
 	}
 
 	// set block size
