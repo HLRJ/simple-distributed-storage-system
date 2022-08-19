@@ -22,27 +22,26 @@ type dataNodeServer struct {
 }
 
 // 读文件
-func (c *dataNodeServer) Read(ctx context.Context, req *protos.ReadRequest) (*protos.ReadReply, error) {
+func (s *dataNodeServer) Read(ctx context.Context, req *protos.ReadRequest) (*protos.ReadReply, error) {
 	id := uuid.New()
 	err := id.UnmarshalBinary(req.Uuid)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	log.Infof("start to read the file: %v", id.String())
+	log.Infof("datanode server %v start to read the file: %v", s.addr, id.String())
 	filepath := LocalFileSystemRoot + id.String()
 
 	data, err := os.ReadFile(filepath)
 	if err != nil {
-		log.Panicf("failed to open a file: %v", err)
-		return nil, err
+		log.Panicf("datanode server %v failed to open a file: %v", s.addr, err)
 	}
-	log.Infof("successfully read the file: %v", id.String())
+	log.Infof("datanode server %v successfully read the file: %v", s.addr, id.String())
 	return &protos.ReadReply{Data: data}, nil
 }
 
 // 写入文件到磁盘
-func (c *dataNodeServer) Write(ctx context.Context, req *protos.WriteRequest) (*protos.WriteReply, error) {
+func (s *dataNodeServer) Write(ctx context.Context, req *protos.WriteRequest) (*protos.WriteReply, error) {
 	id := uuid.New()
 	err := id.UnmarshalBinary(req.Uuid)
 	if err != nil {
@@ -50,44 +49,44 @@ func (c *dataNodeServer) Write(ctx context.Context, req *protos.WriteRequest) (*
 	}
 
 	data := req.Data
-	log.Infof("start to write the file: %v", id.String())
+	log.Infof("datanode server %v start to write the file: %v", s.addr, id.String())
 	filepath := LocalFileSystemRoot + id.String()
 
 	file, err := os.Create(filepath)
 	if err != nil {
-		log.Panicf("failed to create a file: %v", err)
+		log.Panicf("datanode server %v failed to create a file: %v", s.addr, err)
 	}
 	defer file.Close()
 
 	_, errWrite := file.Write(data)
 	if errWrite != nil {
-		log.Panicf("failed to write the file: %v", id.String())
+		log.Panicf("datanode server %v failed to write the file: %v", s.addr, id.String())
 	}
-	log.Infof("successfully write the file: %v", id.String())
+	log.Infof("datanode server %v successfully write the file: %v", s.addr, id.String())
 	return &protos.WriteReply{}, nil
 }
 
 // 返回心跳包
-func (c *dataNodeServer) HeartBeat(ctx context.Context, in *protos.HeartBeatRequest) (*protos.HeartBeatReply, error) {
+func (s *dataNodeServer) HeartBeat(ctx context.Context, in *protos.HeartBeatRequest) (*protos.HeartBeatReply, error) {
 	return &protos.HeartBeatReply{}, nil
 }
 
 // 删除文件
-func (c *dataNodeServer) Remove(ctx context.Context, req *protos.RemoveRequest) (*protos.RemoveReply, error) {
+func (s *dataNodeServer) Remove(ctx context.Context, req *protos.RemoveRequest) (*protos.RemoveReply, error) {
 	id := uuid.New()
 	err := id.UnmarshalBinary(req.Uuid)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	log.Infof("start to remove the file: %v", id.String())
+	log.Infof("datanode server %v start to remove the file: %v", s.addr, id.String())
 	filepath := LocalFileSystemRoot + id.String()
 
 	errRemove := os.Remove(filepath)
 	if errRemove != nil {
-		log.Panicf("failed to remove the file: %v", id.String())
+		log.Panicf("datanode server %v failed to remove the file: %v", s.addr, id.String())
 	} else {
-		log.Infof("successfully remove the file: %v", id.String())
+		log.Infof("datanode server %v successfully remove the file: %v", s.addr, id.String())
 	}
 	return &protos.RemoveReply{}, nil
 }
@@ -102,9 +101,9 @@ func NewDataNodeServer(addr string) *dataNodeServer {
 	}
 }
 
-func (s *dataNodeServer) Setup() {
+func (s *dataNodeServer) Setup(ctx context.Context) {
 	// setup datanode server
-	log.Infof("starting datanode server at %v", s.addr)
+	log.Infof("starting datanode server %v", s.addr)
 	listener, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		log.Panic(err)
@@ -141,5 +140,10 @@ func (s *dataNodeServer) Setup() {
 	s.blockSize = reply.BlockSize
 
 	// blocked here
-	select {}
+	select {
+	case <-ctx.Done():
+		server.Stop()
+		log.Infof("datanode server %v quitting", s.addr)
+		return
+	}
 }

@@ -163,16 +163,17 @@ func (s *nameNodeServer) fetchAllLocs() []int {
 func (s *nameNodeServer) removeDataNodeServer(loc int, addr string) {
 	log.Infof("namenode server %v remove datanode server %v with loc %v", consts.NameNodeServerAddr, addr, loc)
 
-	// delete addr <-> loc
-	delete(s.dataNodeLocToAddr, loc)
-	delete(s.dataNodeAddrToLoc, addr)
-
 	// start data migration
-	s.dataMigration(loc)
+	if s.dataMigration(loc) {
+		// delete addr <-> loc
+		delete(s.dataNodeLocToAddr, loc)
+		delete(s.dataNodeAddrToLoc, addr)
+	}
 }
 
-func (s *nameNodeServer) dataMigration(loc int) {
+func (s *nameNodeServer) dataMigration(loc int) bool {
 	log.Infof("namenode server %v start data migration for loc %v", consts.NameNodeServerAddr, loc)
+	failed := false
 
 	for id, locs := range s.uuidToDataNodeLocs {
 		index := utils.ContainsLoc(locs, loc)
@@ -181,8 +182,8 @@ func (s *nameNodeServer) dataMigration(loc int) {
 
 			// fetch candidates
 			var candidates []int
-			for candidate := range s.dataNodeLocToAddr {
-				if utils.ContainsLoc(locs, candidate) != -1 {
+			for candidate := range s.fetchAllLocs() {
+				if utils.ContainsLoc(locs, candidate) == -1 && candidate != loc {
 					candidates = append(candidates, candidate)
 				}
 			}
@@ -192,83 +193,111 @@ func (s *nameNodeServer) dataMigration(loc int) {
 			// random choose one
 			res, err := utils.RandomChooseLocs(candidates, 1)
 			if err != nil {
+				log.Warn(err)
 				log.Warnf("unable to migrate data for %v", id)
-				continue
+				failed = true
+				break
 			}
 
-			targetLoc := res[0]
+			fromLoc := locs[(index+1)%len(locs)]
+			toLoc := res[0]
 
 			// get addr
-			addr, ok := s.dataNodeLocToAddr[targetLoc]
+			fromAddr, ok := s.dataNodeLocToAddr[fromLoc]
 			if !ok {
 				log.Warnf("unable to migrate data for %v", id)
-				continue
+				failed = true
+				break
+			}
+			toAddr, ok := s.dataNodeLocToAddr[toLoc]
+			if !ok {
+				log.Warnf("unable to migrate data for %v", id)
+				failed = true
+				break
 			}
 
-			log.Infof("uuid %v -> backup datanode server %v with loc %v", id, addr, loc)
+			log.Infof("uuid %v -> copy from %v to %v", id, fromAddr, toAddr)
 
-			// connect to backup datanode server
-			datanode, conn := utils.ConnectToDataNode(addr)
+			// connect to datanode server and read data
+			datanode, conn := utils.ConnectToDataNode(fromAddr)
 			bin, err := id.MarshalBinary()
 			if err != nil {
 				log.Warn(err)
 				log.Warnf("unable to migrate data for %v", id)
-				continue
+				failed = true
+				break
 			}
-
-			// read data
 			reply, err := datanode.Read(context.Background(), &protos.ReadRequest{Uuid: bin})
 			if err != nil {
 				log.Warn(err)
 				log.Warnf("unable to migrate data for %v", id)
-				continue
+				failed = true
+				break
+			}
+			err = conn.Close()
+			if err != nil {
+				log.Warn(err)
+				log.Warnf("unable to migrate data for %v", id)
+				failed = true
+				break
 			}
 
-			// write data
+			// connect to datanode server and write data
+			datanode, conn = utils.ConnectToDataNode(toAddr)
 			_, err = datanode.Write(context.Background(), &protos.WriteRequest{Uuid: bin, Data: reply.Data})
 			if err != nil {
 				log.Warn(err)
 				log.Warnf("unable to migrate data for %v", id)
-				continue
+				failed = true
+				break
 			}
-
 			err = conn.Close()
 			if err != nil {
 				log.Warn(err)
-				continue
+				log.Warnf("unable to migrate data for %v", id)
+				failed = true
+				break
 			}
 
 			// modify UUIDToDataNodeLocs
 			locs = append(locs[:index], locs[index:]...)
-			locs = append(locs, targetLoc)
+			locs = append(locs, toLoc)
 			s.uuidToDataNodeLocs[id] = locs // TODO: iterator maybe corrupted
 		}
 	}
+
+	return !failed
 }
 
-func (s *nameNodeServer) startHeartbeatTicker() {
+func (s *nameNodeServer) startHeartbeatTicker(ctx context.Context) {
 	for {
-		s.mu.Lock()
-		locs := s.fetchAllLocs()
-		for _, loc := range locs {
-			addr, ok := s.dataNodeLocToAddr[loc]
-			if ok {
-				datanode, conn := utils.ConnectToDataNode(addr)
-				_, err := datanode.HeartBeat(context.Background(), &protos.HeartBeatRequest{})
-				if err != nil {
-					// delete unreachable datanode server
-					log.Warn(err)
-					log.Infof("namenode server %v find datanode %v unreachable", consts.NameNodeServerAddr, addr)
-					s.removeDataNodeServer(loc, addr)
-				}
-				err = conn.Close()
-				if err != nil {
-					log.Warn(err)
+		select {
+		case <-ctx.Done():
+			log.Infof("namenode server %v stop heartbeat", consts.NameNodeServerAddr)
+			return
+		case <-time.After(5 * time.Second):
+			s.mu.Lock()
+			log.Infof("namenode server %v start heartbeat ticker", consts.NameNodeServerAddr)
+			locs := s.fetchAllLocs()
+			for _, loc := range locs {
+				addr, ok := s.dataNodeLocToAddr[loc]
+				if ok {
+					datanode, conn := utils.ConnectToDataNode(addr)
+					_, err := datanode.HeartBeat(context.Background(), &protos.HeartBeatRequest{})
+					if err != nil {
+						// delete unreachable datanode server
+						log.Warn(err)
+						log.Infof("namenode server %v find datanode %v unreachable", consts.NameNodeServerAddr, addr)
+						s.removeDataNodeServer(loc, addr)
+					}
+					err = conn.Close()
+					if err != nil {
+						log.Warn(err)
+					}
 				}
 			}
+			s.mu.Unlock()
 		}
-		s.mu.Unlock()
-		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -282,7 +311,7 @@ func NewNameNodeServer() *nameNodeServer {
 	}
 }
 
-func (s *nameNodeServer) Setup() {
+func (s *nameNodeServer) Setup(ctx context.Context) {
 	// setup namenode server
 	log.Infof("starting namenode server at %v", consts.NameNodeServerAddr)
 	listener, err := net.Listen("tcp", consts.NameNodeServerAddr)
@@ -300,8 +329,13 @@ func (s *nameNodeServer) Setup() {
 	}()
 
 	// start heartbeat ticker
-	go s.startHeartbeatTicker()
+	go s.startHeartbeatTicker(ctx)
 
 	// blocked here
-	select {}
+	select {
+	case <-ctx.Done():
+		server.Stop()
+		log.Infof("namenode server %v quitting", consts.NameNodeServerAddr)
+		return
+	}
 }
