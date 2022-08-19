@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"math/rand"
 	"net"
 	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/protos"
@@ -37,6 +36,7 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// get uuids
 	uuids, ok := s.FileToUUIDs[in.Path]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("file %v not exists", in.Path))
@@ -46,17 +46,20 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 		return nil, errors.New(fmt.Sprintf("index %v out of range %v", in.Index, len(uuids)))
 	}
 
+	// get uuid
 	id := uuids[in.Index]
-	res, err := id.MarshalBinary()
+	bin, err := id.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
 
+	// get locs
 	locs, ok := s.UUIDToDataNodeLocs[id]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("uuid %v not exists", id))
 	}
 
+	// get addrs
 	var addrs []string
 	for _, loc := range locs {
 		addr, ok := s.dataNodeLocToAddr[loc]
@@ -70,7 +73,7 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 
 	return &protos.GetBlockAddrsReply{
 		Addrs: addrs,
-		Uuid:  res,
+		Uuid:  bin,
 	}, nil
 }
 
@@ -80,10 +83,11 @@ func (s *nameNodeServer) RegisterDataNode(ctx context.Context, in *protos.Regist
 
 	loc, ok := s.dataNodeAddrToLoc[in.Address]
 	if ok {
-		delete(s.dataNodeAddrToLoc, in.Address)
-		delete(s.dataNodeLocToAddr, loc)
+		// delete outdated datanode server
+		s.removeDataNodeServer(loc, in.Address)
 	}
 
+	// update addr <-> loc
 	s.dataNodeAddrToLoc[in.Address] = s.dataNodeMaxLoc
 	s.dataNodeLocToAddr[s.dataNodeMaxLoc] = in.Address
 
@@ -101,11 +105,13 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 
 	log.Infof("namenode server %v create file %v", consts.NameNodeServerAddr, in.Path)
 
+	// check file existence
 	_, ok := s.FileToUUIDs[in.Path]
 	if ok {
 		return nil, errors.New(fmt.Sprintf("file %v already exists", in.Path))
 	}
 
+	// calculate blocks and assign uuids
 	var uuids []uuid.UUID
 	blocks := utils.CeilDiv(in.Size, blockSize)
 	for i := 0; i < blocks; i++ {
@@ -115,8 +121,9 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 	}
 	s.FileToUUIDs[in.Path] = uuids
 
+	// alloc locs for uuid
 	for _, id := range uuids {
-		locs, err := s.fetchDataNodeLocs()
+		locs, err := utils.RandomChooseLocs(s.fetchAllLocs(), replicaFactor)
 		if err != nil {
 			return nil, err
 		}
@@ -133,42 +140,122 @@ func (s *nameNodeServer) Open(ctx context.Context, in *protos.OpenRequest) (*pro
 
 	log.Infof("namenode server %v open file %v", consts.NameNodeServerAddr, in.Path)
 
+	// check file existence
 	uuids, ok := s.FileToUUIDs[in.Path]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("file %v not exists", in.Path))
 	}
 
+	// return blocks
 	return &protos.OpenReply{BlockSize: blockSize, Blocks: uint64(len(uuids))}, nil
 }
 
-func (s *nameNodeServer) fetchDataNodeLocs() ([]int, error) {
+func (s *nameNodeServer) fetchAllLocs() []int {
 	index := 0
 	locs := make([]int, len(s.dataNodeLocToAddr))
 	for loc := range s.dataNodeLocToAddr {
 		locs[index] = loc
 		index++
 	}
-
-	if len(locs) < replicaFactor {
-		return nil, errors.New("insufficient datanode server")
-	}
-
-	rand.Seed(time.Now().Unix())
-	rand.Shuffle(len(locs), func(i int, j int) {
-		locs[i], locs[j] = locs[j], locs[i]
-	})
-
-	result := make([]int, 0, replicaFactor)
-	for index, value := range locs {
-		if index == replicaFactor {
-			break
-		}
-		result = append(result, value)
-	}
-	return result, nil
+	return locs
 }
 
-func newNameNodeServer() *nameNodeServer {
+func (s *nameNodeServer) removeDataNodeServer(loc int, addr string) {
+	delete(s.dataNodeLocToAddr, loc)
+	delete(s.dataNodeAddrToLoc, addr)
+	s.dataMigration(loc)
+}
+
+func (s *nameNodeServer) dataMigration(loc int) {
+	for id, locs := range s.UUIDToDataNodeLocs {
+		index := utils.ContainsLoc(locs, loc)
+		if index != -1 {
+			// fetch candidates
+			var candidates []int
+			for candidate := range s.dataNodeLocToAddr {
+				if utils.ContainsLoc(locs, candidate) != -1 {
+					candidates = append(candidates, candidate)
+				}
+			}
+
+			res, err := utils.RandomChooseLocs(candidates, 1)
+			if err != nil {
+				log.Warn("unable to migrate data for %v", id)
+				continue
+			}
+
+			addr, ok := s.dataNodeLocToAddr[res[0]]
+			if !ok {
+				log.Warn("unable to migrate data for %v", id)
+				continue
+			}
+
+			// connect to backup datanode server
+			datanode, conn := utils.ConnectToDataNode(addr)
+			bin, err := id.MarshalBinary()
+			if err != nil {
+				log.Warn(err)
+				log.Warn("unable to migrate data for %v", id)
+				continue
+			}
+
+			// read data
+			reply, err := datanode.Read(context.Background(), &protos.ReadRequest{Uuid: bin})
+			if err != nil {
+				log.Warn(err)
+				log.Warn("unable to migrate data for %v", id)
+				continue
+			}
+
+			// write data
+			_, err = datanode.Write(context.Background(), &protos.WriteRequest{Uuid: bin, Data: reply.Data})
+			if err != nil {
+				log.Warn(err)
+				log.Warn("unable to migrate data for %v", id)
+				continue
+			}
+
+			err = conn.Close()
+			if err != nil {
+				log.Warn(err)
+				continue
+			}
+
+			// modify UUIDToDataNodeLocs
+			locs = append(locs[:index], locs[index:]...)
+			locs = append(locs, res[0])
+			s.UUIDToDataNodeLocs[id] = locs // TODO: iterator maybe corrupted
+		}
+	}
+}
+
+func (s *nameNodeServer) startHeartbeatTicker() {
+	for {
+		s.mu.Lock()
+		locs := s.fetchAllLocs()
+		for _, loc := range locs {
+			addr, ok := s.dataNodeLocToAddr[loc]
+			if ok {
+				datanode, conn := utils.ConnectToDataNode(addr)
+				_, err := datanode.HeartBeat(context.Background(), &protos.HeartBeatRequest{})
+				if err != nil {
+					// delete unreachable datanode server
+					log.Warn(err)
+					log.Infof("namenode server %v find datanode %v unreachable", consts.NameNodeServerAddr, addr)
+					s.removeDataNodeServer(loc, addr)
+				}
+				err = conn.Close()
+				if err != nil {
+					log.Warn(err)
+				}
+			}
+		}
+		s.mu.Unlock()
+		time.Sleep(10 * time.Second)
+	}
+}
+
+func NewNameNodeServer() *nameNodeServer {
 	return &nameNodeServer{
 		dataNodeMaxLoc:     0,
 		dataNodeLocToAddr:  make(map[int]string),
@@ -178,7 +265,7 @@ func newNameNodeServer() *nameNodeServer {
 	}
 }
 
-func Setup() {
+func (s *nameNodeServer) Setup() {
 	// setup namenode server
 	log.Infof("starting namenode server at %v", consts.NameNodeServerAddr)
 	listener, err := net.Listen("tcp", consts.NameNodeServerAddr)
@@ -186,9 +273,18 @@ func Setup() {
 		log.Panic(err)
 	}
 	server := grpc.NewServer()
-	protos.RegisterNameNodeServer(server, newNameNodeServer())
-	err = server.Serve(listener)
-	if err != nil {
-		log.Panic(err)
-	}
+	protos.RegisterNameNodeServer(server, s)
+
+	go func() {
+		err = server.Serve(listener)
+		if err != nil {
+			log.Panic(err)
+		}
+	}()
+
+	// start heartbeat ticker
+	go s.startHeartbeatTicker()
+
+	// blocked here
+	select {}
 }

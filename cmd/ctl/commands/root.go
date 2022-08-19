@@ -9,7 +9,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "SDSS",
 	Short: "SDSS is a simple distributed storage system",
-	Long: `A simple distributed storage system built  in Go.
+	Long: `A simple distributed storage system built in Go.
                 Complete documentation is available at https://github.com/HLRJ/simple-distributed-storage-system`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Do Stuff Here

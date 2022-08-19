@@ -4,30 +4,30 @@ package protos;
 
 option go_package = "../protos";
 
-message WriteChunkRequest{
-    bytes chunkuuid=1;
-    bytes chunk=2;
-    UuidRequest uuidRequest=3;   
-}
-message WriteChunkResponse{
-    string message=1;
-}
-message ReadChunkRequest{
-    bytes chunkuuid=1;
-    UuidRequest uuidRequest=2;
-}
-message ReadChunkResponse{
-    bytes chunk=1;
-}
-message UuidRequest{
-    bytes chunkuuid=1;
-}
-message UuidResponse{
-    string file_path=1;
+service DataNode {
+    rpc Read(ReadRequest) returns (ReadReply);
+    rpc Write(WriteRequest) returns (WriteReply);
+    rpc Remove(RemoveRequest) returns (RemoveReply);
+    rpc HeartBeat(HeartBeatRequest) returns (HeartBeatReply);
 }
 
-service dataserver{
-    rpc WriteChunk(WriteChunkRequest) returns(WriteChunkResponse);
-    rpc ReadChunk(ReadChunkRequest) returns(ReadChunkResponse);
-    rpc GetUuidPath(UuidRequest) returns(UuidResponse);
+message ReadRequest {
+    bytes uuid = 1;
 }
+message ReadReply {
+    bytes data = 1;
+}
+
+message WriteRequest {
+    bytes uuid = 1;
+    bytes data = 2;
+}
+message WriteReply {}
+
+message RemoveRequest {
+    bytes uuid = 1;
+}
+message RemoveReply {}
+
+message HeartBeatRequest {}
+message HeartBeatReply {}

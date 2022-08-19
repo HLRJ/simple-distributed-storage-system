@@ -14,9 +14,8 @@ import (
 
 type client struct {
 	blockSize uint64
-
-	nameNode protos.NameNodeClient
-	conn     *grpc.ClientConn // for close
+	nameNode  protos.NameNodeClient
+	conn      *grpc.ClientConn // for close
 }
 
 func NewClient() *client {
@@ -38,15 +37,6 @@ func (c *client) CloseClient() {
 	if err != nil {
 		log.Panic(err)
 	}
-}
-
-func connectDataNode(addr string) (protos.DataNodeClient, *grpc.ClientConn) {
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Panic(err)
-	}
-
-	return protos.NewDataNodeClient(conn), conn
 }
 
 func (c *client) create(remotePath string, size uint64) {
@@ -100,7 +90,7 @@ func (c *client) Put(localPath string, remotePath string) {
 
 		for _, addr := range reply.Addrs {
 			// connect to datanode and write data
-			datanode, conn := connectDataNode(addr)
+			datanode, conn := utils.ConnectToDataNode(addr)
 			_, err := datanode.Write(context.Background(), &protos.WriteRequest{
 				Uuid: reply.Uuid,
 				Data: data[uint64(i)*c.blockSize : utils.Min(uint64(i+1)*c.blockSize, size)],
@@ -133,7 +123,7 @@ func (c *client) Get(remotePath string, localPath string) {
 		success := false
 		for _, addr := range reply.Addrs {
 			// connect to datanode and read data
-			datanode, conn := connectDataNode(addr)
+			datanode, conn := utils.ConnectToDataNode(addr)
 			reply, err := datanode.Read(context.Background(), &protos.ReadRequest{
 				Uuid: reply.Uuid,
 			})
