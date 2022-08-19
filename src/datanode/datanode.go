@@ -12,9 +12,11 @@ const LocalFileSystemRoot string = "/tmp/gfs/chunks/"
 
 type DataServer struct {
 	protos.UnimplementedDataNodeServer
+  addr      string
+  blockSize uint64
 }
 
-//读文件
+// 读文件
 func (c *DataServer) Read(ctx context.Context, req *protos.ReadRequest) (*protos.ReadReply, error) {
 	uuid := string(req.GetUuid())
 	log.Infof("start to read the file: %v", uuid)
@@ -29,7 +31,7 @@ func (c *DataServer) Read(ctx context.Context, req *protos.ReadRequest) (*protos
 	return &protos.ReadReply{Data: fileStream}, nil
 }
 
-//写入文件到磁盘
+// 写入文件到磁盘
 func (c *DataServer) Write(ctx context.Context, req *protos.WriteRequest) (*protos.WriteReply, error) {
 	uuid := string(req.GetUuid())
 	data := req.Data
@@ -50,12 +52,12 @@ func (c *DataServer) Write(ctx context.Context, req *protos.WriteRequest) (*prot
 	return &protos.WriteReply{}, nil
 }
 
-//返回心跳包
+// 返回心跳包
 func (c *DataServer) HeartBeat(ctx context.Context, in *protos.HeartBeatRequest) (*protos.HeartBeatReply, error) {
 	return &protos.HeartBeatReply{}, nil
 }
 
-//删除文件
+// 删除文件
 func (c *DataServer) Remove(ctx context.Context, req *protos.RemoveRequest) (*protos.RemoveReply, error) {
 	uuid := string(req.GetUuid())
 	log.Infof("start to remove the file:%v", uuid)
@@ -70,8 +72,50 @@ func (c *DataServer) Remove(ctx context.Context, req *protos.RemoveRequest) (*pr
 	return &protos.RemoveReply{}, nil
 }
 
-//将DataServer结构体供外部调用
-func MakeServer() *DataServer {
-	Server := &DataServer{}
-	return Server
+func NewDataNodeServer(addr string) *dataNodeServer {
+	return &dataNodeServer{
+		addr: addr,
+	}
+}
+
+func (s *dataNodeServer) Setup() {
+	// setup datanode server
+	log.Infof("starting datanode server at %v", s.addr)
+	listener, err := net.Listen("tcp", s.addr)
+	if err != nil {
+		log.Panic(err)
+	}
+	server := grpc.NewServer()
+	protos.RegisterDataNodeServer(server, s)
+
+	go func() {
+		err = server.Serve(listener)
+		if err != nil {
+			log.Panic(err)
+		}
+	}()
+
+	// connect to namenode
+	conn, err := grpc.Dial(consts.NameNodeServerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Panic(err)
+	}
+	defer func(conn *grpc.ClientConn) {
+		err := conn.Close()
+		if err != nil {
+			log.Panic(err)
+		}
+	}(conn)
+
+	client := protos.NewNameNodeClient(conn)
+	reply, err := client.RegisterDataNode(context.Background(), &protos.RegisterDataNodeRequest{Address: s.addr})
+	if err != nil {
+		log.Panic(err)
+	}
+
+	// set block size
+	s.blockSize = reply.BlockSize
+
+	// blocked here
+	select {}
 }
