@@ -137,6 +137,7 @@ retry:
 	if err != nil {
 		log.Warn(err)
 		time.Sleep(time.Second)
+		// TODO: max retries
 		goto retry
 	}
 

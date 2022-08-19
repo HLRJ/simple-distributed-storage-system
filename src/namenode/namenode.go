@@ -29,8 +29,8 @@ type nameNodeServer struct {
 	dataNodeLocToAddr map[int]string
 	dataNodeAddrToLoc map[string]int
 
-	fileToUUIDs        map[string][]uuid.UUID
-	uuidToDataNodeLocs map[uuid.UUID][]int
+	fileToUUIDs            map[string][]uuid.UUID
+	uuidToDataNodeLocsInfo map[uuid.UUID]map[int]bool
 
 	registrationContext bool
 	registrationAddr    string
@@ -58,18 +58,36 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 	}
 
 	// get locs
-	locs, ok := s.uuidToDataNodeLocs[id]
+	locsInfo, ok := s.uuidToDataNodeLocsInfo[id]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("uuid %v not exists", id))
 	}
 
 	// get addrs
 	var addrs []string
-	for _, loc := range locs {
-		addr, ok := s.dataNodeLocToAddr[loc]
-		if ok {
-			addrs = append(addrs, addr)
+	for loc, ok := range locsInfo {
+		switch in.OpType {
+		// existed
+		case protos.GetBlockAddrsRequestOpType_OP_GET:
+			fallthrough
+		case protos.GetBlockAddrsRequestOpType_OP_REMOVE:
+			if ok {
+				addr, ok := s.dataNodeLocToAddr[loc]
+				if ok {
+					addrs = append(addrs, addr)
+				}
+			}
+
+		// not existed
+		case protos.GetBlockAddrsRequestOpType_OP_PUT:
+			if !ok {
+				addr, ok := s.dataNodeLocToAddr[loc]
+				if ok {
+					addrs = append(addrs, addr)
+				}
+			}
 		}
+
 	}
 
 	log.Infof("namenode server %v get addrs %v for file %v at block #%v",
@@ -98,7 +116,6 @@ func (s *nameNodeServer) RegisterDataNode(ctx context.Context, in *protos.Regist
 	loc, ok := s.dataNodeAddrToLoc[in.Address]
 	if ok {
 		// delete outdated datanode server
-		// TODO: loose conditions
 		if !s.removeDataNodeServer(loc, in.Address) { // active remove
 			log.Warnf("namenode server %v cannot register datanode server %v with loc %v",
 				consts.NameNodeServerAddr, in.Address, targetLoc)
@@ -147,7 +164,13 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 		if err != nil {
 			return nil, err
 		}
-		s.uuidToDataNodeLocs[id] = locs
+
+		locsInfo := make(map[int]bool)
+		for _, locs := range locs {
+			locsInfo[locs] = false // invalid now
+		}
+		s.uuidToDataNodeLocsInfo[id] = locsInfo
+
 		log.Infof("uuid %v -> locs %v", id, locs)
 	}
 
@@ -168,6 +191,40 @@ func (s *nameNodeServer) Open(ctx context.Context, in *protos.OpenRequest) (*pro
 
 	// return blocks
 	return &protos.OpenReply{BlockSize: blockSize, Blocks: uint64(len(uuids))}, nil
+}
+
+func (s *nameNodeServer) LocsValidityNotify(ctx context.Context, in *protos.LocsValidityNotifyRequest) (*protos.LocsValidityNotifyReply, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	id := uuid.New()
+	err := id.UnmarshalBinary(in.Uuid)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	log.Infof("namenode server %v receive locs validity %v for uuid %v", consts.NameNodeServerAddr, in.Validity, id)
+
+	locsInfo, ok := s.uuidToDataNodeLocsInfo[id]
+	if !ok {
+		return nil, errors.New(fmt.Sprintf("uuid %v not exists", id))
+	}
+
+	for addr, validity := range in.Validity {
+		loc, ok := s.dataNodeAddrToLoc[addr]
+		if !ok {
+			log.Warnf("addr %v not exists", addr)
+		} else {
+			_, ok := locsInfo[loc]
+			if !ok {
+				log.Warnf("loc %v not exists", addr)
+			} else {
+				s.uuidToDataNodeLocsInfo[id][loc] = validity
+			}
+		}
+	}
+
+	return &protos.LocsValidityNotifyReply{}, nil
 }
 
 func (s *nameNodeServer) fetchAllLocs() []int {
@@ -204,15 +261,16 @@ func (s *nameNodeServer) dataMigration(loc int) bool {
 	log.Infof("namenode server %v start data migration for loc %v", consts.NameNodeServerAddr, loc)
 	failed := false
 
-	for id, locs := range s.uuidToDataNodeLocs {
-		index := utils.ContainsLoc(locs, loc)
-		if index != -1 {
-			log.Infof("uuid %v -> locs %v contains %v", id, locs, loc)
+	for id, locsInfo := range s.uuidToDataNodeLocsInfo {
+		valid, ok := locsInfo[loc]
+		if ok && valid {
+			log.Infof("uuid %v -> locs %v contains %v", id, locsInfo, loc)
 
-			// fetch candidates
+			// fetch candidates as to
 			var candidates []int
 			for candidate := range s.fetchAllLocs() {
-				if utils.ContainsLoc(locs, candidate) == -1 && candidate != loc {
+				_, ok := locsInfo[candidate]
+				if !ok {
 					candidates = append(candidates, candidate)
 				}
 			}
@@ -228,15 +286,7 @@ func (s *nameNodeServer) dataMigration(loc int) bool {
 				break
 			}
 
-			// get loc and addr
-			fromLoc := locs[(index+1)%len(locs)]
-			fromAddr, ok := s.dataNodeLocToAddr[fromLoc]
-			if !ok {
-				log.Warnf("unable to migrate data for %v", id)
-				failed = true
-				break
-			}
-
+			// get addr
 			toLoc := res[0]
 			var toAddr string
 			if toLoc == s.dataNodeMaxLoc {
@@ -248,6 +298,28 @@ func (s *nameNodeServer) dataMigration(loc int) bool {
 					failed = true
 					break
 				}
+			}
+
+			// fetch candidates as from
+			fromLoc := -1
+			for candidate, valid := range locsInfo {
+				if valid && candidate != loc {
+					fromLoc = candidate
+					break
+				}
+			}
+			if fromLoc == -1 {
+				log.Warnf("unable to migrate data for %v", id)
+				failed = true
+				break
+			}
+
+			// get addr
+			fromAddr, ok := s.dataNodeLocToAddr[fromLoc]
+			if !ok {
+				log.Warnf("unable to migrate data for %v", id)
+				failed = true
+				break
 			}
 
 			log.Infof("uuid %v -> copy from %v to %v", id, fromAddr, toAddr)
@@ -293,10 +365,9 @@ func (s *nameNodeServer) dataMigration(loc int) bool {
 				break
 			}
 
-			// modify UUIDToDataNodeLocs
-			locs = append(locs[:index], locs[index:]...)
-			locs = append(locs, toLoc)
-			s.uuidToDataNodeLocs[id] = locs // TODO: iterator maybe corrupted
+			// modify uuidToDataNodeLocsInfo
+			delete(s.uuidToDataNodeLocsInfo[id], loc)
+			s.uuidToDataNodeLocsInfo[id][toLoc] = true
 		}
 	}
 
@@ -337,11 +408,11 @@ func (s *nameNodeServer) startHeartbeatTicker(ctx context.Context) {
 
 func NewNameNodeServer() *nameNodeServer {
 	return &nameNodeServer{
-		dataNodeMaxLoc:     0,
-		dataNodeLocToAddr:  make(map[int]string),
-		dataNodeAddrToLoc:  make(map[string]int),
-		fileToUUIDs:        make(map[string][]uuid.UUID),
-		uuidToDataNodeLocs: make(map[uuid.UUID][]int),
+		dataNodeMaxLoc:         0,
+		dataNodeLocToAddr:      make(map[int]string),
+		dataNodeAddrToLoc:      make(map[string]int),
+		fileToUUIDs:            make(map[string][]uuid.UUID),
+		uuidToDataNodeLocsInfo: make(map[uuid.UUID]map[int]bool),
 	}
 }
 

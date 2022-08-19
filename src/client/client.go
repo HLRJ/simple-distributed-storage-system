@@ -67,45 +67,6 @@ func (c *client) open(remotePath string) int {
 	return int(reply.Blocks)
 }
 
-func (c *client) Put(localPath string, remotePath string) {
-	// read file
-	data, err := ioutil.ReadFile(localPath)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	size := uint64(len(data))
-	c.create(remotePath, size)
-
-	blocks := utils.CeilDiv(size, c.blockSize)
-	for i := 0; i < blocks; i++ {
-		// get block locs
-		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
-			Path:  remotePath,
-			Index: uint64(i),
-		})
-		if err != nil {
-			log.Panic(err)
-		}
-
-		for _, addr := range reply.Addrs {
-			// connect to datanode and write data
-			datanode, conn := utils.ConnectToDataNode(addr)
-			_, err := datanode.Write(context.Background(), &protos.WriteRequest{
-				Uuid: reply.Uuid,
-				Data: data[uint64(i)*c.blockSize : utils.Min(uint64(i+1)*c.blockSize, size)],
-			})
-			if err != nil {
-				log.Panic(err)
-			}
-			err = conn.Close()
-			if err != nil {
-				log.Panic(err)
-			}
-		}
-	}
-}
-
 func (c *client) Get(remotePath string, localPath string) {
 	var data []byte
 
@@ -113,8 +74,9 @@ func (c *client) Get(remotePath string, localPath string) {
 	for i := 0; i < blocks; i++ {
 		// get block locs
 		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
-			Path:  remotePath,
-			Index: uint64(i),
+			Path:   remotePath,
+			Index:  uint64(i),
+			OpType: protos.GetBlockAddrsRequestOpType_OP_GET,
 		})
 		if err != nil {
 			log.Panic(err)
@@ -160,5 +122,114 @@ func (c *client) Get(remotePath string, localPath string) {
 	_, err = f.Write(data)
 	if err != nil {
 		log.Panic(err)
+	}
+}
+
+func (c *client) Put(localPath string, remotePath string) {
+	// read file
+	data, err := ioutil.ReadFile(localPath)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	size := uint64(len(data))
+	c.create(remotePath, size)
+
+	blocks := utils.CeilDiv(size, c.blockSize)
+	for i := 0; i < blocks; i++ {
+		// get block locs
+		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
+			Path:   remotePath,
+			Index:  uint64(i),
+			OpType: protos.GetBlockAddrsRequestOpType_OP_PUT,
+		})
+		if err != nil {
+			log.Panic(err)
+		}
+
+		validity := make(map[string]bool)
+
+		for _, addr := range reply.Addrs {
+			// connect to datanode and write data
+			success := true
+			datanode, conn := utils.ConnectToDataNode(addr)
+
+			_, err := datanode.Write(context.Background(), &protos.WriteRequest{
+				Uuid: reply.Uuid,
+				Data: data[uint64(i)*c.blockSize : utils.Min(uint64(i+1)*c.blockSize, size)],
+			})
+			if err != nil {
+				log.Warn(err)
+				success = false
+			}
+			err = conn.Close()
+			if err != nil {
+				log.Warn(err)
+				success = false
+			}
+
+			if success {
+				validity[addr] = true
+			}
+		}
+
+		// notify validity
+		_, err = c.nameNode.LocsValidityNotify(context.Background(), &protos.LocsValidityNotifyRequest{
+			Uuid:     reply.Uuid,
+			Validity: validity,
+		})
+		if err != nil {
+			log.Panic(err)
+		}
+	}
+}
+
+func (c *client) Remove(remotePath string) {
+	blocks := c.open(remotePath)
+
+	for i := 0; i < blocks; i++ {
+		// get block locs
+		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
+			Path:   remotePath,
+			Index:  uint64(i),
+			OpType: protos.GetBlockAddrsRequestOpType_OP_REMOVE,
+		})
+		if err != nil {
+			log.Panic(err)
+		}
+
+		validity := make(map[string]bool)
+
+		for _, addr := range reply.Addrs {
+			// connect to datanode and remove data
+			success := true
+			datanode, conn := utils.ConnectToDataNode(addr)
+
+			_, err := datanode.Remove(context.Background(), &protos.RemoveRequest{
+				Uuid: reply.Uuid,
+			})
+			if err != nil {
+				log.Panic(err)
+				success = false
+			}
+			err = conn.Close()
+			if err != nil {
+				log.Panic(err)
+				success = false
+			}
+
+			if success {
+				validity[addr] = false
+			}
+		}
+
+		// notify validity
+		_, err = c.nameNode.LocsValidityNotify(context.Background(), &protos.LocsValidityNotifyRequest{
+			Uuid:     reply.Uuid,
+			Validity: validity,
+		})
+		if err != nil {
+			log.Panic(err)
+		}
 	}
 }

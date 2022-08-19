@@ -9,11 +9,18 @@ service NameNode {
   rpc RegisterDataNode(RegisterDataNodeRequest) returns (RegisterDataNodeReply) {}
   rpc Create(CreateRequest) returns (CreateReply) {}
   rpc Open(OpenRequest) returns (OpenReply) {}
+  rpc LocsValidityNotify(LocsValidityNotifyRequest) returns (LocsValidityNotifyReply) {}
 }
 
+enum GetBlockAddrsRequestOpType {
+  OP_GET = 0;
+  OP_PUT = 1;
+  OP_REMOVE = 2;
+}
 message GetBlockAddrsRequest {
   string path = 1;
   uint64 index = 2;
+  GetBlockAddrsRequestOpType opType = 3;
 }
 message GetBlockAddrsReply {
   repeated string addrs = 1;
@@ -42,3 +49,9 @@ message OpenReply {
   uint64 blockSize = 1;
   uint64 blocks = 2;
 }
+
+message LocsValidityNotifyRequest {
+  bytes uuid = 1;
+  map<string, bool> validity = 2;
+}
+message LocsValidityNotifyReply {}
