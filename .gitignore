@@ -17,6 +17,3 @@
 
 bin/
 .vscode/
-go.mod
-go.sum
-output
