@@ -14,13 +14,14 @@ import (
 
 type dataNodeServer struct {
 	protos.DataNodeServer
+
 	blockSize uint64
 	db        *leveldb.DB
-	address   string
+	addr      string
 }
 
 func (s *dataNodeServer) Read(ctx context.Context, in *protos.ReadRequest) (*protos.ReadReply, error) {
-	log.Infof("datanode server %v read %v", s.address, in.Uuid)
+	log.Infof("datanode server %v read %v", s.addr, in.Uuid)
 	data, err := s.db.Get(in.Uuid, nil)
 	if err != nil {
 		return nil, err
@@ -29,7 +30,7 @@ func (s *dataNodeServer) Read(ctx context.Context, in *protos.ReadRequest) (*pro
 }
 
 func (s *dataNodeServer) Write(ctx context.Context, in *protos.WriteRequest) (*protos.WriteReply, error) {
-	log.Infof("datanode server %v write %v - %v", s.address, in.Uuid, in.Data)
+	log.Infof("datanode server %v write %v - %v", s.addr, in.Uuid, in.Data)
 	err := s.db.Put(in.Uuid, in.Data, nil)
 	if err != nil {
 		return nil, err
@@ -43,15 +44,15 @@ func NewDataNodeServer(address string) *dataNodeServer {
 		log.Panic(err)
 	}
 	return &dataNodeServer{
-		address: address,
-		db:      db,
+		addr: address,
+		db:   db,
 	}
 }
 
 func (s *dataNodeServer) Setup() {
 	// setup datanode server
-	log.Infof("starting datanode server at %v", s.address)
-	listener, err := net.Listen("tcp", s.address)
+	log.Infof("starting datanode server at %v", s.addr)
+	listener, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -78,7 +79,7 @@ func (s *dataNodeServer) Setup() {
 	}(conn)
 
 	client := protos.NewNameNodeClient(conn)
-	reply, err := client.RegisterDataNode(context.Background(), &protos.RegisterDataNodeRequest{Address: s.address})
+	reply, err := client.RegisterDataNode(context.Background(), &protos.RegisterDataNodeRequest{Address: s.addr})
 	if err != nil {
 		log.Panic(err)
 	}
