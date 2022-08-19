@@ -2,6 +2,7 @@ package test
 
 import (
 	"bytes"
+	"context"
 	"io/ioutil"
 	"simple-distributed-storage-system/src/client"
 	"simple-distributed-storage-system/src/datanode"
@@ -11,13 +12,13 @@ import (
 )
 
 func TestSimplePut(t *testing.T) {
-	go namenode.NewNameNodeServer().Setup()
+	go namenode.NewNameNodeServer().Setup(context.Background())
 
 	time.Sleep(time.Second)
 
-	go datanode.NewDataNodeServer("localhost:9000").Setup()
-	go datanode.NewDataNodeServer("localhost:9001").Setup()
-	go datanode.NewDataNodeServer("localhost:9002").Setup()
+	go datanode.NewDataNodeServer("localhost:9000").Setup(context.Background())
+	go datanode.NewDataNodeServer("localhost:9001").Setup(context.Background())
+	go datanode.NewDataNodeServer("localhost:9002").Setup(context.Background())
 
 	time.Sleep(5 * time.Second)
 
@@ -30,13 +31,13 @@ func TestSimplePut(t *testing.T) {
 }
 
 func TestSimpleGet(t *testing.T) {
-	go namenode.NewNameNodeServer().Setup()
+	go namenode.NewNameNodeServer().Setup(context.Background())
 
 	time.Sleep(time.Second)
 
-	go datanode.NewDataNodeServer("localhost:9000").Setup()
-	go datanode.NewDataNodeServer("localhost:9001").Setup()
-	go datanode.NewDataNodeServer("localhost:9002").Setup()
+	go datanode.NewDataNodeServer("localhost:9000").Setup(context.Background())
+	go datanode.NewDataNodeServer("localhost:9001").Setup(context.Background())
+	go datanode.NewDataNodeServer("localhost:9002").Setup(context.Background())
 
 	time.Sleep(5 * time.Second)
 

@@ -1,7 +1,10 @@
 package main
 
-import "simple-distributed-storage-system/src/namenode"
+import (
+	"context"
+	"simple-distributed-storage-system/src/namenode"
+)
 
 func main() {
-	namenode.NewNameNodeServer().Setup()
+	namenode.NewNameNodeServer().Setup(context.Background())
 }
