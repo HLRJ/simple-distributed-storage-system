@@ -1,12 +1,11 @@
-.PHONY: all hello SDSS-ctl proto clean
+.PHONY: server hello SDSS-ctl proto clean
 
 SDSS-ctl:
 	go build -o bin/SDSS-ctl cmd/ctl/main.go
 
-all: proto
+server: proto
 	go build -o bin/namenode cmd/namenode/main.go
 	go build -o bin/datanode cmd/datanode/main.go
-	go build -o bin/client cmd/client/main.go
 
 hello: proto
 	go build -o bin/hello_server cmd/hello/server/main.go

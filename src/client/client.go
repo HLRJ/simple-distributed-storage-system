@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -32,54 +33,57 @@ func NewClient() *client {
 	}
 }
 
-func (c *client) CloseClient() {
-	err := c.conn.Close()
-	if err != nil {
-		log.Panic(err)
-	}
+func (c *client) CloseClient() error {
+	return c.conn.Close()
 }
 
-func (c *client) create(remotePath string, size uint64) {
+func (c *client) create(remotePath string, size uint64) error {
 	// create file
 	reply, err := c.nameNode.Create(context.Background(), &protos.CreateRequest{
 		Path: remotePath,
 		Size: size,
 	})
 	if err != nil {
-		log.Panic(err)
+		return err
 	}
 
 	// set block size
 	c.blockSize = reply.BlockSize
+
+	return nil
 }
 
-func (c *client) open(remotePath string) int {
+func (c *client) open(remotePath string) (int, error) {
 	// open file
 	reply, err := c.nameNode.Open(context.Background(), &protos.OpenRequest{
 		Path: remotePath,
 	})
 	if err != nil {
-		log.Panic(err)
+		return 0, err
 	}
 
 	// set block size
 	c.blockSize = reply.BlockSize
-	return int(reply.Blocks)
+	return int(reply.Blocks), nil
 }
 
-func (c *client) Get(remotePath string, localPath string) {
+func (c *client) Get(remotePath, localPath string) error {
 	var data []byte
 
-	blocks := c.open(remotePath)
+	blocks, err := c.open(remotePath)
+	if err != nil {
+		return err
+	}
+
 	for i := 0; i < blocks; i++ {
 		// get block locs
 		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
-			Path:   remotePath,
-			Index:  uint64(i),
-			OpType: protos.GetBlockAddrsRequestOpType_OP_GET,
+			Path:  remotePath,
+			Index: uint64(i),
+			Type:  protos.GetBlockAddrsRequestType_OP_GET,
 		})
 		if err != nil {
-			log.Panic(err)
+			return err
 		}
 
 		success := false
@@ -90,61 +94,65 @@ func (c *client) Get(remotePath string, localPath string) {
 				Uuid: reply.Uuid,
 			})
 
-			closeConn := func() {
-				err = conn.Close()
-				if err != nil {
-					log.Panic(err)
-				}
-			}
-
 			if err == nil {
 				success = true
 				data = append(data, reply.Data...)
-				closeConn()
+				err = conn.Close()
+				if err != nil {
+					return err
+				}
 				break
 			} else {
 				log.Warn(err)
-				closeConn()
+				err = conn.Close()
+				if err != nil {
+					return err
+				}
 				continue
 			}
 		}
 
 		if !success {
-			log.Panic("data corrupted")
+			return errors.New("data corrupted")
 		}
 	}
 
 	// write to local file
 	f, err := os.Create(localPath)
 	if err != nil {
-		log.Panic(err)
+		return err
 	}
 	_, err = f.Write(data)
 	if err != nil {
-		log.Panic(err)
+		return err
 	}
+
+	return nil
 }
 
-func (c *client) Put(localPath string, remotePath string) {
+func (c *client) Put(localPath, remotePath string) error {
 	// read file
 	data, err := ioutil.ReadFile(localPath)
 	if err != nil {
-		log.Panic(err)
+		return err
 	}
 
 	size := uint64(len(data))
-	c.create(remotePath, size)
+	err = c.create(remotePath, size)
+	if err != nil {
+		return err
+	}
 
 	blocks := utils.CeilDiv(size, c.blockSize)
 	for i := 0; i < blocks; i++ {
 		// get block locs
 		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
-			Path:   remotePath,
-			Index:  uint64(i),
-			OpType: protos.GetBlockAddrsRequestOpType_OP_PUT,
+			Path:  remotePath,
+			Index: uint64(i),
+			Type:  protos.GetBlockAddrsRequestType_OP_PUT,
 		})
 		if err != nil {
-			log.Panic(err)
+			return err
 		}
 
 		validity := make(map[string]bool)
@@ -164,8 +172,7 @@ func (c *client) Put(localPath string, remotePath string) {
 			}
 			err = conn.Close()
 			if err != nil {
-				log.Warn(err)
-				success = false
+				return err
 			}
 
 			if success {
@@ -179,23 +186,28 @@ func (c *client) Put(localPath string, remotePath string) {
 			Validity: validity,
 		})
 		if err != nil {
-			log.Panic(err)
+			return err
 		}
 	}
+
+	return nil
 }
 
-func (c *client) Remove(remotePath string) {
-	blocks := c.open(remotePath)
+func (c *client) Remove(remotePath string) error {
+	blocks, err := c.open(remotePath)
+	if err != nil {
+		return err
+	}
 
 	for i := 0; i < blocks; i++ {
 		// get block locs
 		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
-			Path:   remotePath,
-			Index:  uint64(i),
-			OpType: protos.GetBlockAddrsRequestOpType_OP_REMOVE,
+			Path:  remotePath,
+			Index: uint64(i),
+			Type:  protos.GetBlockAddrsRequestType_OP_REMOVE,
 		})
 		if err != nil {
-			log.Panic(err)
+			return err
 		}
 
 		validity := make(map[string]bool)
@@ -209,13 +221,12 @@ func (c *client) Remove(remotePath string) {
 				Uuid: reply.Uuid,
 			})
 			if err != nil {
-				log.Panic(err)
+				log.Warn(err)
 				success = false
 			}
 			err = conn.Close()
 			if err != nil {
-				log.Panic(err)
-				success = false
+				return err
 			}
 
 			if success {
@@ -229,7 +240,25 @@ func (c *client) Remove(remotePath string) {
 			Validity: validity,
 		})
 		if err != nil {
-			log.Panic(err)
+			return err
 		}
 	}
+
+	return nil
+}
+
+func (c *client) Stat(remotePath string) error {
+	return nil
+}
+
+func (c *client) Mkdir(remotePath string) error {
+	return nil
+}
+
+func (c *client) Rename(remotePathSrc, remotePathDest string) error {
+	return nil
+}
+
+func (c *client) List(remotePath string) error {
+	return nil
 }

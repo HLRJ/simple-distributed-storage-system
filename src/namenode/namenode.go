@@ -11,6 +11,7 @@ import (
 	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/protos"
 	"simple-distributed-storage-system/src/utils"
+	"strings"
 	"sync"
 	"time"
 )
@@ -21,6 +22,11 @@ const (
 	blockSize                 uint64 = 64
 )
 
+type fileInfo struct {
+	ids  []uuid.UUID
+	size uint64
+}
+
 type nameNodeServer struct {
 	protos.UnimplementedNameNodeServer
 	mu sync.Mutex
@@ -29,7 +35,7 @@ type nameNodeServer struct {
 	dataNodeLocToAddr map[int]string
 	dataNodeAddrToLoc map[string]int
 
-	fileToUUIDs            map[string][]uuid.UUID
+	fileToInfo             map[string]fileInfo
 	uuidToDataNodeLocsInfo map[uuid.UUID]map[int]bool
 
 	registrationContext bool
@@ -41,17 +47,17 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 	defer s.mu.Unlock()
 
 	// get uuids
-	uuids, ok := s.fileToUUIDs[in.Path]
+	info, ok := s.fileToInfo[in.Path]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("file %v not exists", in.Path))
 	}
 
-	if uint64(len(uuids)) <= in.Index {
-		return nil, errors.New(fmt.Sprintf("index %v out of range %v", in.Index, len(uuids)))
+	if uint64(len(info.ids)) <= in.Index {
+		return nil, errors.New(fmt.Sprintf("index %v out of range %v", in.Index, len(info.ids)))
 	}
 
 	// get uuid
-	id := uuids[in.Index]
+	id := info.ids[in.Index]
 	bin, err := id.MarshalBinary()
 	if err != nil {
 		return nil, err
@@ -66,11 +72,12 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 	// get addrs
 	var addrs []string
 	for loc, ok := range locsInfo {
-		switch in.OpType {
+		switch in.Type {
 		// existed
-		case protos.GetBlockAddrsRequestOpType_OP_GET:
+		case protos.GetBlockAddrsRequestType_OP_REMOVE:
+			delete(s.fileToInfo, in.Path)
 			fallthrough
-		case protos.GetBlockAddrsRequestOpType_OP_REMOVE:
+		case protos.GetBlockAddrsRequestType_OP_GET:
 			if ok {
 				addr, ok := s.dataNodeLocToAddr[loc]
 				if ok {
@@ -79,7 +86,7 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 			}
 
 		// not existed
-		case protos.GetBlockAddrsRequestOpType_OP_PUT:
+		case protos.GetBlockAddrsRequestType_OP_PUT:
 			if !ok {
 				addr, ok := s.dataNodeLocToAddr[loc]
 				if ok {
@@ -110,7 +117,7 @@ func (s *nameNodeServer) RegisterDataNode(ctx context.Context, in *protos.Regist
 	}()
 
 	targetLoc := s.dataNodeMaxLoc
-	log.Infof("namenode server %v tryingt to register datanode server %v with loc %v",
+	log.Infof("namenode server %v trying to register datanode server %v with loc %v",
 		consts.NameNodeServerAddr, in.Address, targetLoc)
 
 	loc, ok := s.dataNodeAddrToLoc[in.Address]
@@ -143,7 +150,7 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 	log.Infof("namenode server %v create file %v", consts.NameNodeServerAddr, in.Path)
 
 	// check file existence
-	_, ok := s.fileToUUIDs[in.Path]
+	_, ok := s.fileToInfo[in.Path]
 	if ok {
 		return nil, errors.New(fmt.Sprintf("file %v already exists", in.Path))
 	}
@@ -156,7 +163,10 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 		uuids = append(uuids, id)
 		log.Infof("block #%v -> uuid %v", i, id)
 	}
-	s.fileToUUIDs[in.Path] = uuids
+	s.fileToInfo[in.Path] = fileInfo{
+		ids:  uuids,
+		size: in.Size,
+	}
 
 	// alloc locs for uuid
 	for _, id := range uuids {
@@ -184,13 +194,13 @@ func (s *nameNodeServer) Open(ctx context.Context, in *protos.OpenRequest) (*pro
 	log.Infof("namenode server %v open file %v", consts.NameNodeServerAddr, in.Path)
 
 	// check file existence
-	uuids, ok := s.fileToUUIDs[in.Path]
+	info, ok := s.fileToInfo[in.Path]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("file %v not exists", in.Path))
 	}
 
 	// return blocks
-	return &protos.OpenReply{BlockSize: blockSize, Blocks: uint64(len(uuids))}, nil
+	return &protos.OpenReply{BlockSize: blockSize, Blocks: uint64(len(info.ids))}, nil
 }
 
 func (s *nameNodeServer) LocsValidityNotify(ctx context.Context, in *protos.LocsValidityNotifyRequest) (*protos.LocsValidityNotifyReply, error) {
@@ -225,6 +235,38 @@ func (s *nameNodeServer) LocsValidityNotify(ctx context.Context, in *protos.Locs
 	}
 
 	return &protos.LocsValidityNotifyReply{}, nil
+}
+
+func (s *nameNodeServer) FetchFileInfo(ctx context.Context, in *protos.FetchFileInfoRequest) (*protos.FetchFileInfoReply, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	log.Infof("namenode server %v stat path %v", consts.NameNodeServerAddr, in.Path)
+
+	// check file existence
+	info, ok := s.fileToInfo[in.Path]
+	if !ok {
+		return nil, errors.New(fmt.Sprintf("path %v not exists", in.Path))
+	}
+
+	var infos []*protos.FileInfo
+	if in.Path[len(in.Path)-1] != '/' { // is file
+		infos = append(infos, &protos.FileInfo{
+			Name: in.Path,
+			Size: info.size,
+		})
+	} else { // is directory
+		for file, info := range s.fileToInfo {
+			if strings.HasPrefix(file, in.Path) {
+				infos = append(infos, &protos.FileInfo{
+					Name: file,
+					Size: info.size,
+				})
+			}
+		}
+	}
+
+	return &protos.FetchFileInfoReply{Infos: infos}, nil
 }
 
 func (s *nameNodeServer) fetchAllLocs() []int {
@@ -408,10 +450,9 @@ func (s *nameNodeServer) startHeartbeatTicker(ctx context.Context) {
 
 func NewNameNodeServer() *nameNodeServer {
 	return &nameNodeServer{
-		dataNodeMaxLoc:         0,
 		dataNodeLocToAddr:      make(map[int]string),
 		dataNodeAddrToLoc:      make(map[string]int),
-		fileToUUIDs:            make(map[string][]uuid.UUID),
+		fileToInfo:             make(map[string]fileInfo),
 		uuidToDataNodeLocsInfo: make(map[uuid.UUID]map[int]bool),
 	}
 }
