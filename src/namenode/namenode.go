@@ -28,8 +28,8 @@ type nameNodeServer struct {
 	dataNodeLocToAddr map[int]string
 	dataNodeAddrToLoc map[string]int
 
-	FileToUUIDs        map[string][]uuid.UUID
-	UUIDToDataNodeLocs map[uuid.UUID][]int
+	fileToUUIDs        map[string][]uuid.UUID
+	uuidToDataNodeLocs map[uuid.UUID][]int
 }
 
 func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockAddrsRequest) (*protos.GetBlockAddrsReply, error) {
@@ -37,7 +37,7 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 	defer s.mu.Unlock()
 
 	// get uuids
-	uuids, ok := s.FileToUUIDs[in.Path]
+	uuids, ok := s.fileToUUIDs[in.Path]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("file %v not exists", in.Path))
 	}
@@ -54,7 +54,7 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 	}
 
 	// get locs
-	locs, ok := s.UUIDToDataNodeLocs[id]
+	locs, ok := s.uuidToDataNodeLocs[id]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("uuid %v not exists", id))
 	}
@@ -91,7 +91,7 @@ func (s *nameNodeServer) RegisterDataNode(ctx context.Context, in *protos.Regist
 	s.dataNodeAddrToLoc[in.Address] = s.dataNodeMaxLoc
 	s.dataNodeLocToAddr[s.dataNodeMaxLoc] = in.Address
 
-	log.Infof("namenode server %v register %v with loc %v",
+	log.Infof("namenode server %v register datanode server %v with loc %v",
 		consts.NameNodeServerAddr, in.Address, s.dataNodeMaxLoc)
 
 	s.dataNodeMaxLoc++
@@ -106,7 +106,7 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 	log.Infof("namenode server %v create file %v", consts.NameNodeServerAddr, in.Path)
 
 	// check file existence
-	_, ok := s.FileToUUIDs[in.Path]
+	_, ok := s.fileToUUIDs[in.Path]
 	if ok {
 		return nil, errors.New(fmt.Sprintf("file %v already exists", in.Path))
 	}
@@ -119,7 +119,7 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 		uuids = append(uuids, id)
 		log.Infof("block #%v -> uuid %v", i, id)
 	}
-	s.FileToUUIDs[in.Path] = uuids
+	s.fileToUUIDs[in.Path] = uuids
 
 	// alloc locs for uuid
 	for _, id := range uuids {
@@ -127,7 +127,7 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 		if err != nil {
 			return nil, err
 		}
-		s.UUIDToDataNodeLocs[id] = locs
+		s.uuidToDataNodeLocs[id] = locs
 		log.Infof("uuid %v -> locs %v", id, locs)
 	}
 
@@ -141,7 +141,7 @@ func (s *nameNodeServer) Open(ctx context.Context, in *protos.OpenRequest) (*pro
 	log.Infof("namenode server %v open file %v", consts.NameNodeServerAddr, in.Path)
 
 	// check file existence
-	uuids, ok := s.FileToUUIDs[in.Path]
+	uuids, ok := s.fileToUUIDs[in.Path]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("file %v not exists", in.Path))
 	}
@@ -161,15 +161,24 @@ func (s *nameNodeServer) fetchAllLocs() []int {
 }
 
 func (s *nameNodeServer) removeDataNodeServer(loc int, addr string) {
+	log.Infof("namenode server %v remove datanode server %v with loc %v", consts.NameNodeServerAddr, addr, loc)
+
+	// delete addr <-> loc
 	delete(s.dataNodeLocToAddr, loc)
 	delete(s.dataNodeAddrToLoc, addr)
+
+	// start data migration
 	s.dataMigration(loc)
 }
 
 func (s *nameNodeServer) dataMigration(loc int) {
-	for id, locs := range s.UUIDToDataNodeLocs {
+	log.Infof("namenode server %v start data migration for loc %v", consts.NameNodeServerAddr, loc)
+
+	for id, locs := range s.uuidToDataNodeLocs {
 		index := utils.ContainsLoc(locs, loc)
 		if index != -1 {
+			log.Infof("uuid %v -> locs %v contains %v", id, locs, loc)
+
 			// fetch candidates
 			var candidates []int
 			for candidate := range s.dataNodeLocToAddr {
@@ -178,24 +187,32 @@ func (s *nameNodeServer) dataMigration(loc int) {
 				}
 			}
 
+			log.Infof("uuid %v -> fetch candidates %v", id, candidates)
+
+			// random choose one
 			res, err := utils.RandomChooseLocs(candidates, 1)
 			if err != nil {
-				log.Warn("unable to migrate data for %v", id)
+				log.Warnf("unable to migrate data for %v", id)
 				continue
 			}
 
-			addr, ok := s.dataNodeLocToAddr[res[0]]
+			targetLoc := res[0]
+
+			// get addr
+			addr, ok := s.dataNodeLocToAddr[targetLoc]
 			if !ok {
-				log.Warn("unable to migrate data for %v", id)
+				log.Warnf("unable to migrate data for %v", id)
 				continue
 			}
+
+			log.Infof("uuid %v -> backup datanode server %v with loc %v", id, addr, loc)
 
 			// connect to backup datanode server
 			datanode, conn := utils.ConnectToDataNode(addr)
 			bin, err := id.MarshalBinary()
 			if err != nil {
 				log.Warn(err)
-				log.Warn("unable to migrate data for %v", id)
+				log.Warnf("unable to migrate data for %v", id)
 				continue
 			}
 
@@ -203,7 +220,7 @@ func (s *nameNodeServer) dataMigration(loc int) {
 			reply, err := datanode.Read(context.Background(), &protos.ReadRequest{Uuid: bin})
 			if err != nil {
 				log.Warn(err)
-				log.Warn("unable to migrate data for %v", id)
+				log.Warnf("unable to migrate data for %v", id)
 				continue
 			}
 
@@ -211,7 +228,7 @@ func (s *nameNodeServer) dataMigration(loc int) {
 			_, err = datanode.Write(context.Background(), &protos.WriteRequest{Uuid: bin, Data: reply.Data})
 			if err != nil {
 				log.Warn(err)
-				log.Warn("unable to migrate data for %v", id)
+				log.Warnf("unable to migrate data for %v", id)
 				continue
 			}
 
@@ -223,8 +240,8 @@ func (s *nameNodeServer) dataMigration(loc int) {
 
 			// modify UUIDToDataNodeLocs
 			locs = append(locs[:index], locs[index:]...)
-			locs = append(locs, res[0])
-			s.UUIDToDataNodeLocs[id] = locs // TODO: iterator maybe corrupted
+			locs = append(locs, targetLoc)
+			s.uuidToDataNodeLocs[id] = locs // TODO: iterator maybe corrupted
 		}
 	}
 }
@@ -260,8 +277,8 @@ func NewNameNodeServer() *nameNodeServer {
 		dataNodeMaxLoc:     0,
 		dataNodeLocToAddr:  make(map[int]string),
 		dataNodeAddrToLoc:  make(map[string]int),
-		FileToUUIDs:        make(map[string][]uuid.UUID),
-		UUIDToDataNodeLocs: make(map[uuid.UUID][]int),
+		fileToUUIDs:        make(map[string][]uuid.UUID),
+		uuidToDataNodeLocs: make(map[uuid.UUID][]int),
 	}
 }
 
