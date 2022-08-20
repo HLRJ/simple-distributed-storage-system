@@ -247,8 +247,14 @@ func (c *client) Remove(remotePath string) error {
 	return nil
 }
 
-func (c *client) Stat(remotePath string) error {
-	return nil
+func (c *client) Stat(remotePath string) (*protos.FileInfo, error) {
+	reply, err := c.nameNode.FetchFileInfo(context.Background(), &protos.FetchFileInfoRequest{Path: remotePath})
+	if err != nil {
+		return nil, err
+	}
+	// 定位一个文件 输出就是一个文件信息
+	var fileInfo = reply.Infos[0]
+	return fileInfo, nil
 }
 
 func (c *client) Mkdir(remotePath string) error {
@@ -259,6 +265,10 @@ func (c *client) Rename(remotePathSrc, remotePathDest string) error {
 	return nil
 }
 
-func (c *client) List(remotePath string) error {
-	return nil
+func (c *client) List(remotePath string) (*protos.FetchFileInfoReply, error) {
+	reply, err := c.nameNode.FetchFileInfo(context.Background(), &protos.FetchFileInfoRequest{Path: remotePath})
+	if err != nil {
+		return reply, err
+	}
+	return reply, nil
 }
