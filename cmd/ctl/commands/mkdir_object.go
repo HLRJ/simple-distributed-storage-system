@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"simple-distributed-storage-system/src/client"
@@ -16,12 +17,14 @@ var mkdirObjectCmd = &cobra.Command{
 		client := client.NewClient()
 		err := client.Mkdir(args[0])
 		if err != nil {
+			fmt.Println("mkdir error")
 			log.Panic(err)
 		}
 		err = client.CloseClient()
 		if err != nil {
 			log.Panic(err)
 		}
+		fmt.Println("mkdir successfully")
 	},
 }
 

@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"simple-distributed-storage-system/src/client"
@@ -16,12 +17,14 @@ var renameObjectCmd = &cobra.Command{
 		client := client.NewClient()
 		err := client.Rename(args[0], args[1])
 		if err != nil {
+			fmt.Println("rename error")
 			log.Panic(err)
 		}
 		err = client.CloseClient()
 		if err != nil {
 			log.Panic(err)
 		}
+		fmt.Println("rename successfully")
 	},
 }
 
