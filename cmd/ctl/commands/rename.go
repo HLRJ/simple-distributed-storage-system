@@ -20,10 +20,7 @@ var renameObjectCmd = &cobra.Command{
 			fmt.Println("rename error")
 			log.Panic(err)
 		}
-		err = client.CloseClient()
-		if err != nil {
-			log.Panic(err)
-		}
+		client.CloseClient()
 		fmt.Println("rename successfully")
 	},
 }

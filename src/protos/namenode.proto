@@ -12,6 +12,7 @@ service NameNode {
   rpc LocsValidityNotify(LocsValidityNotifyRequest) returns (LocsValidityNotifyReply) {}
   rpc FetchFileInfo(FetchFileInfoRequest) returns (FetchFileInfoReply) {}
   rpc Rename(RenameRequest) returns (RenameReply) {}
+  rpc IsLeader(IsLeaderRequest) returns (IsLeaderReply) {}
 }
 
 enum GetBlockAddrsRequestType {
@@ -74,3 +75,6 @@ message RenameRequest {
   string newPath = 2;
 }
 message RenameReply {}
+
+message IsLeaderRequest {}
+message IsLeaderReply {}

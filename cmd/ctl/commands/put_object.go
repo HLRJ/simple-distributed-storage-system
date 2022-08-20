@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"simple-distributed-storage-system/src/client"
 )
@@ -19,10 +18,7 @@ var putObjectCmd = &cobra.Command{
 		if err != nil {
 			fmt.Println("put file error")
 		}
-		err = client.CloseClient()
-		if err != nil {
-			log.Panic(err)
-		}
+		client.CloseClient()
 		fmt.Println("put successfully")
 	},
 }

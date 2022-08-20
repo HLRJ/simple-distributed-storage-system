@@ -5,6 +5,7 @@ import (
 	"context"
 	"io/ioutil"
 	"simple-distributed-storage-system/src/client"
+	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/datanode"
 	"simple-distributed-storage-system/src/namenode"
 	"testing"
@@ -12,14 +13,14 @@ import (
 )
 
 func TestSimplePut(t *testing.T) {
-	go namenode.NewNameNodeServer().Setup(context.Background())
-
-	time.Sleep(time.Second)
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(context.Background())
+	time.Sleep(5 * time.Second)
 
 	go datanode.NewDataNodeServer("localhost:9000").Setup(context.Background())
 	go datanode.NewDataNodeServer("localhost:9001").Setup(context.Background())
 	go datanode.NewDataNodeServer("localhost:9002").Setup(context.Background())
-
 	time.Sleep(5 * time.Second)
 
 	localPath := "/tmp/README.md"
@@ -30,21 +31,18 @@ func TestSimplePut(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	err = c.CloseClient()
-	if err != nil {
-		t.Error(err)
-	}
+	c.CloseClient()
 }
 
 func TestSimpleGet(t *testing.T) {
-	go namenode.NewNameNodeServer().Setup(context.Background())
-
-	time.Sleep(time.Second)
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(context.Background())
+	time.Sleep(5 * time.Second)
 
 	go datanode.NewDataNodeServer("localhost:9000").Setup(context.Background())
 	go datanode.NewDataNodeServer("localhost:9001").Setup(context.Background())
 	go datanode.NewDataNodeServer("localhost:9002").Setup(context.Background())
-
 	time.Sleep(5 * time.Second)
 
 	localPath := "/tmp/README.md"
@@ -71,21 +69,18 @@ func TestSimpleGet(t *testing.T) {
 	if !bytes.Equal(dataCopy, data) {
 		t.Error("inconsistent data")
 	}
-	err = c.CloseClient()
-	if err != nil {
-		t.Error(err)
-	}
+	c.CloseClient()
 }
 
 func TestSimpleRemove(t *testing.T) {
-	go namenode.NewNameNodeServer().Setup(context.Background())
-
-	time.Sleep(time.Second)
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(context.Background())
+	time.Sleep(5 * time.Second)
 
 	go datanode.NewDataNodeServer("localhost:9000").Setup(context.Background())
 	go datanode.NewDataNodeServer("localhost:9001").Setup(context.Background())
 	go datanode.NewDataNodeServer("localhost:9002").Setup(context.Background())
-
 	time.Sleep(5 * time.Second)
 
 	localPath := "/tmp/README.md"
@@ -105,8 +100,5 @@ func TestSimpleRemove(t *testing.T) {
 	if err == nil {
 		t.Error("remove failed")
 	}
-	err = c.CloseClient()
-	if err != nil {
-		t.Error(err)
-	}
+	c.CloseClient()
 }

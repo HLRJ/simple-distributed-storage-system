@@ -14,17 +14,14 @@ var listObjectCmd = &cobra.Command{
 	Short: "List objects from remote_path of SDSS cluster",
 	Long:  `获取分布式文件存储系统中的文件元数据信息`,
 	Run: func(cmd *cobra.Command, args []string) {
-		client := client.NewClient()
-		files, err := client.List(args[0])
+		client := client.NewReadonlyClient()
+		infos, err := client.List(args[0])
 		if err != nil {
 			fmt.Println("list error")
 			log.Panic(err)
 		}
-		err = client.CloseClient()
-		if err != nil {
-			log.Panic(err)
-		}
-		fmt.Println(files.Infos)
+		client.CloseClient()
+		fmt.Println(infos)
 	},
 }
 
