@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"simple-distributed-storage-system/src/client"
@@ -14,14 +15,17 @@ var statObjectCmd = &cobra.Command{
 	Long:  `获取分布式文件存储系统中的文件元数据信息`,
 	Run: func(cmd *cobra.Command, args []string) {
 		client := client.NewClient()
-		err := client.Stat(args[0])
+		fileInfo, err := client.Stat(args[0])
 		if err != nil {
+			fmt.Println("stat error")
 			log.Panic(err)
 		}
 		err = client.CloseClient()
 		if err != nil {
 			log.Panic(err)
 		}
+		//输出 文件信息
+		fmt.Println(fileInfo)
 	},
 }
 

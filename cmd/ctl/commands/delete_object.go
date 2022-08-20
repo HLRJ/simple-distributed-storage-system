@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"simple-distributed-storage-system/src/client"
@@ -16,12 +17,13 @@ var delObjectCmd = &cobra.Command{
 		client := client.NewClient()
 		err := client.Remove(args[0])
 		if err != nil {
-			log.Panic(err)
+			fmt.Println("delete file error")
 		}
 		err = client.CloseClient()
 		if err != nil {
 			log.Panic(err)
 		}
+		fmt.Println(args[0])
 	},
 }
 
