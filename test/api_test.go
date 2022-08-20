@@ -104,7 +104,9 @@ func TestSimpleRemove(t *testing.T) {
 }
 
 func TestStat(t *testing.T) {
-	go namenode.NewNameNodeServer().Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(context.Background())
 
 	time.Sleep(time.Second)
 
@@ -135,7 +137,7 @@ func TestStat(t *testing.T) {
 	if fileInfo.Name != remotePath && fileInfo.Size != localFileSize {
 		t.Error("Stat failed")
 	}
-	err = c.CloseClient()
+	c.CloseClient()
 	if err != nil {
 		t.Error(err)
 	}
@@ -166,7 +168,9 @@ func TestStat(t *testing.T) {
 //}
 
 func TestRename(t *testing.T) {
-	go namenode.NewNameNodeServer().Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(context.Background())
 
 	time.Sleep(time.Second)
 
@@ -205,7 +209,7 @@ func TestRename(t *testing.T) {
 	if !bytes.Equal(dataCopy, data) {
 		t.Error("inconsistent data")
 	}
-	err = c.CloseClient()
+	c.CloseClient()
 	if err != nil {
 		t.Error(err)
 	}
@@ -213,7 +217,9 @@ func TestRename(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
-	go namenode.NewNameNodeServer().Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(context.Background())
 
 	time.Sleep(time.Second)
 
@@ -245,8 +251,8 @@ func TestList(t *testing.T) {
 	}
 	localFileSize := uint64(len(data))
 	// if return --> remoteDirectory has remoteFile
-	for i := 0; i < len(files.Infos); i++ {
-		if files.Infos[i].Name == remotePath && files.Infos[i].Size == localFileSize {
+	for i := 0; i < len(files); i++ {
+		if files[i].Name == remotePath && files[i].Size == localFileSize {
 			return
 		}
 	}
