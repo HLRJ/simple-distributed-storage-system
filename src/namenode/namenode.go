@@ -269,6 +269,24 @@ func (s *nameNodeServer) FetchFileInfo(ctx context.Context, in *protos.FetchFile
 	return &protos.FetchFileInfoReply{Infos: infos}, nil
 }
 
+func (s *nameNodeServer) Rename(ctx context.Context, in *protos.RenameRequest) (*protos.RenameReply, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	log.Infof("namenode server %v trying to rename %v -> %v", consts.NameNodeServerAddr, in.OldPath, in.NewPath)
+
+	// check file existence
+	info, ok := s.fileToInfo[in.OldPath]
+	if !ok {
+		return nil, errors.New(fmt.Sprintf("path %v not exists", in.OldPath))
+	}
+
+	delete(s.fileToInfo, in.OldPath)
+	s.fileToInfo[in.NewPath] = info
+
+	return &protos.RenameReply{}, nil
+}
+
 func (s *nameNodeServer) fetchAllLocs() []int {
 	index := 0
 	locs := make([]int, len(s.dataNodeLocToAddr))

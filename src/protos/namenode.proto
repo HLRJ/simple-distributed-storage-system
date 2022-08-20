@@ -11,6 +11,7 @@ service NameNode {
   rpc Open(OpenRequest) returns (OpenReply) {}
   rpc LocsValidityNotify(LocsValidityNotifyRequest) returns (LocsValidityNotifyReply) {}
   rpc FetchFileInfo(FetchFileInfoRequest) returns (FetchFileInfoReply) {}
+  rpc Rename(RenameRequest) returns (RenameReply) {}
 }
 
 enum GetBlockAddrsRequestType {
@@ -67,3 +68,9 @@ message FetchFileInfoRequest {
 message FetchFileInfoReply {
   repeated FileInfo infos = 1;
 }
+
+message RenameRequest {
+  string oldPath = 1;
+  string newPath = 2;
+}
+message RenameReply {}
