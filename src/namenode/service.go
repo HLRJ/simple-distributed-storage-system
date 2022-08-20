@@ -12,12 +12,14 @@ import (
 )
 
 func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockAddrsRequest) (*protos.GetBlockAddrsReply, error) {
-	if !s.isLeader() {
+	if !s.isLeader() && in.Type == protos.GetBlockAddrsRequestType_OP_REMOVE {
 		return nil, errors.New(fmt.Sprintf("namenode server %v is not leader", s.addr))
 	}
 	s.mu.Lock()
 	defer func() {
-		s.syncPropose()
+		if in.Type == protos.GetBlockAddrsRequestType_OP_REMOVE {
+			s.syncPropose()
+		}
 		s.mu.Unlock()
 	}()
 
@@ -50,7 +52,7 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 		switch in.Type {
 		// existed
 		case protos.GetBlockAddrsRequestType_OP_REMOVE:
-			delete(s.sm.FileToInfo, in.Path)
+			delete(s.sm.FileToInfo, in.Path) // modify state
 			fallthrough
 		case protos.GetBlockAddrsRequestType_OP_GET:
 			if ok {
@@ -86,11 +88,15 @@ func (s *nameNodeServer) RegisterDataNode(ctx context.Context, in *protos.Regist
 		return nil, errors.New(fmt.Sprintf("namenode server %v is not leader", s.addr))
 	}
 	s.mu.Lock()
-	s.registrationContext = true
-	s.registrationAddr = in.Address
+	s.registrationInfo = registrationInfo{
+		context: true,
+		addr:    in.Address,
+	}
 	defer func() {
-		s.registrationAddr = ""
-		s.registrationContext = false
+		s.registrationInfo = registrationInfo{
+			context: false,
+			addr:    "",
+		}
 		s.syncPropose()
 		s.mu.Unlock()
 	}()

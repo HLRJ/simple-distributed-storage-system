@@ -102,3 +102,49 @@ func TestCrashOneDataNodeServerAndReconnect(t *testing.T) {
 	}
 	c.CloseClient()
 }
+
+func TestCrashOneNameNodeServer(t *testing.T) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(context.Background())
+	time.Sleep(5 * time.Second)
+
+	go datanode.NewDataNodeServer("localhost:9000").Setup(context.Background())
+	go datanode.NewDataNodeServer("localhost:9001").Setup(context.Background())
+	go datanode.NewDataNodeServer("localhost:9002").Setup(context.Background())
+
+	time.Sleep(5 * time.Second)
+
+	localPath := "/tmp/README.md"
+	remotePath := "/doc/README.md"
+	localCopyPath := "/tmp/foo.md"
+
+	c := client.NewClient()
+	data, err := ioutil.ReadFile(localPath)
+	if err != nil {
+		panic(err)
+	}
+	err = c.Put(localPath, remotePath)
+	if err != nil {
+		t.Error(err)
+	}
+	c.CloseClient()
+
+	cancelFunc()
+	time.Sleep(5 * time.Second)
+
+	c = client.NewClient() // new client
+	err = c.Get(remotePath, localCopyPath)
+	if err != nil {
+		t.Error(err)
+	}
+	dataCopy, err := ioutil.ReadFile(localCopyPath)
+	if err != nil {
+		panic(err)
+	}
+	if !bytes.Equal(dataCopy, data) {
+		panic("inconsistent data")
+	}
+	c.CloseClient()
+}

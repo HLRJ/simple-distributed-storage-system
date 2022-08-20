@@ -13,7 +13,7 @@ var getObjectCmd = &cobra.Command{
 	Short: "Get object from SDSS cluster to local",
 	Long:  `将分布式文件存储系统中的文件拉取到本地`,
 	Run: func(cmd *cobra.Command, args []string) {
-		client := client.NewClient()
+		client := client.NewReadonlyClient()
 		err := client.Get(args[0], args[1])
 		if err != nil {
 			fmt.Println("get file error")

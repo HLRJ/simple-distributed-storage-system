@@ -34,6 +34,11 @@ type nameNodeState struct {
 	UUIDToDataNodeLocsInfo map[uuid.UUID]map[int]bool
 }
 
+type registrationInfo struct {
+	context bool
+	addr    string
+}
+
 type nameNodeServer struct {
 	protos.UnimplementedNameNodeServer
 
@@ -43,8 +48,7 @@ type nameNodeServer struct {
 	nh        *dragonboat.NodeHost
 	sm        nameNodeState
 
-	registrationContext bool
-	registrationAddr    string
+	registrationInfo registrationInfo
 }
 
 func (s *nameNodeServer) syncRead(ctx context.Context) {
@@ -126,7 +130,7 @@ func (s *nameNodeServer) fetchAllLocs() []int {
 		locs[index] = loc
 		index++
 	}
-	if s.registrationContext {
+	if s.registrationInfo.context {
 		locs = append(locs, s.sm.DataNodeMaxLoc)
 	}
 	return locs
@@ -182,7 +186,7 @@ func (s *nameNodeServer) dataMigration(loc int) bool {
 			toLoc := res[0]
 			var toAddr string
 			if toLoc == s.sm.DataNodeMaxLoc {
-				toAddr = s.registrationAddr
+				toAddr = s.registrationInfo.addr
 			} else {
 				toAddr, ok = s.sm.DataNodeLocToAddr[toLoc]
 				if !ok {

@@ -14,7 +14,7 @@ var statObjectCmd = &cobra.Command{
 	Short: "Stat object from SDSS cluster",
 	Long:  `获取分布式文件存储系统中的文件元数据信息`,
 	Run: func(cmd *cobra.Command, args []string) {
-		client := client.NewClient()
+		client := client.NewReadonlyClient()
 		info, err := client.Stat(args[0])
 		if err != nil {
 			fmt.Println("stat error")
