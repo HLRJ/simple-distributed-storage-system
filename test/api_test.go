@@ -144,28 +144,33 @@ func TestStat(t *testing.T) {
 
 }
 
-//func TestMkdir(t *testing.T) {
-//	go namenode.NewNameNodeServer().Setup(context.Background())
-//
-//	time.Sleep(time.Second)
-//
-//	go datanode.NewDataNodeServer("localhost:9000").Setup(context.Background())
-//	go datanode.NewDataNodeServer("localhost:9001").Setup(context.Background())
-//	go datanode.NewDataNodeServer("localhost:9002").Setup(context.Background())
-//
-//	time.Sleep(5 * time.Second)
-//	remotePath := "/doc/test/"
-//	c := client.NewClient()
-//	err := c.Mkdir(remotePath)
-//	if err != nil {
-//		t.Error(err)
-//	}
-//
-//	// 目录自身也在自己的files切片里面，不过size为0
-//	if len(files.Infos) != 1 {
-//		t.Error("Mkdir filed")
-//	}
-//}
+func TestMkdir(t *testing.T) {
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(context.Background())
+
+	time.Sleep(time.Second)
+
+	go datanode.NewDataNodeServer("localhost:9000").Setup(context.Background())
+	go datanode.NewDataNodeServer("localhost:9001").Setup(context.Background())
+	go datanode.NewDataNodeServer("localhost:9002").Setup(context.Background())
+
+	time.Sleep(5 * time.Second)
+	remotePath := "/doc/test/"
+	c := client.NewClient()
+	err := c.Mkdir(remotePath)
+	if err != nil {
+		t.Error(err)
+	}
+	files, err := c.List(remotePath)
+	if err != nil {
+		t.Error(err)
+	}
+	//the length of new directory is 1，and size is 0
+	if len(files) != 1 {
+		t.Error("Mkdir filed")
+	}
+}
 
 func TestRename(t *testing.T) {
 	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(context.Background())
