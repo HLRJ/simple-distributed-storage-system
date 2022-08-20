@@ -258,10 +258,18 @@ func (c *client) Stat(remotePath string) (*protos.FileInfo, error) {
 }
 
 func (c *client) Mkdir(remotePath string) error {
+	err := c.create(remotePath, 0)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 func (c *client) Rename(remotePathSrc, remotePathDest string) error {
+	_, err := c.nameNode.Rename(context.Background(), &protos.RenameRequest{OldPath: remotePathSrc, NewPath: remotePathDest})
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
