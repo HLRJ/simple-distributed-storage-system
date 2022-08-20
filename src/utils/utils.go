@@ -1,12 +1,14 @@
 package utils
 
 import (
+	"context"
 	"errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"math"
 	"math/rand"
+	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/protos"
 	"time"
 )
@@ -21,24 +23,6 @@ func Min(a, b uint64) int {
 	} else {
 		return int(b)
 	}
-}
-
-func ConnectToDataNode(addr string) (protos.DataNodeClient, *grpc.ClientConn) {
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Panic(err)
-	}
-
-	return protos.NewDataNodeClient(conn), conn
-}
-
-func ContainsLoc(locs []int, loc int) int {
-	for index, eachLoc := range locs {
-		if eachLoc == loc {
-			return index
-		}
-	}
-	return -1
 }
 
 func RandomChooseLocs(locs []int, count int) ([]int, error) {
@@ -59,4 +43,31 @@ func RandomChooseLocs(locs []int, count int) ([]int, error) {
 		result = append(result, value)
 	}
 	return result, nil
+}
+
+func ConnectToDataNode(addr string) (protos.DataNodeClient, *grpc.ClientConn, error) {
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Warn(err)
+		return nil, nil, err
+	}
+	return protos.NewDataNodeClient(conn), conn, nil
+}
+
+func ConnectToNameNode() (protos.NameNodeClient, *grpc.ClientConn, error) {
+	for _, addr := range consts.NameNodeServerAddrs {
+		conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			log.Warn(err)
+			continue
+		}
+		nameNode := protos.NewNameNodeClient(conn)
+		_, err = nameNode.IsLeader(context.Background(), &protos.IsLeaderRequest{})
+		if err != nil {
+			log.Warn(err)
+			continue
+		}
+		return nameNode, conn, nil
+	}
+	return nil, nil, errors.New("no available namenode server")
 }

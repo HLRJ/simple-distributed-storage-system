@@ -5,6 +5,7 @@ import (
 	"context"
 	"io/ioutil"
 	"simple-distributed-storage-system/src/client"
+	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/datanode"
 	"simple-distributed-storage-system/src/namenode"
 	"testing"
@@ -12,9 +13,10 @@ import (
 )
 
 func TestCrashOneDataNodeServer(t *testing.T) {
-	go namenode.NewNameNodeServer().Setup(context.Background())
-
-	time.Sleep(time.Second)
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(context.Background())
+	time.Sleep(5 * time.Second)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	go datanode.NewDataNodeServer("localhost:9000").Setup(context.Background())
@@ -52,16 +54,14 @@ func TestCrashOneDataNodeServer(t *testing.T) {
 	if !bytes.Equal(dataCopy, data) {
 		panic("inconsistent data")
 	}
-	err = c.CloseClient()
-	if err != nil {
-		t.Error(err)
-	}
+	c.CloseClient()
 }
 
 func TestCrashOneDataNodeServerAndReconnect(t *testing.T) {
-	go namenode.NewNameNodeServer().Setup(context.Background())
-
-	time.Sleep(time.Second)
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(context.Background())
+	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(context.Background())
+	time.Sleep(5 * time.Second)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	go datanode.NewDataNodeServer("localhost:9000").Setup(context.Background())
@@ -100,38 +100,5 @@ func TestCrashOneDataNodeServerAndReconnect(t *testing.T) {
 	if !bytes.Equal(dataCopy, data) {
 		panic("inconsistent data")
 	}
-	err = c.CloseClient()
-	if err != nil {
-		t.Error(err)
-	}
-}
-
-func TestCrashNameNodeServer(t *testing.T) { // TODO
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	go namenode.NewNameNodeServer().Setup(ctx)
-
-	time.Sleep(time.Second)
-
-	go datanode.NewDataNodeServer("localhost:9000").Setup(context.Background())
-	go datanode.NewDataNodeServer("localhost:9001").Setup(context.Background())
-	go datanode.NewDataNodeServer("localhost:9002").Setup(context.Background())
-
-	time.Sleep(5 * time.Second)
-
-	localPath := "/tmp/README.md"
-	remotePath := "/doc/README.md"
-
-	c := client.NewClient()
-	err := c.Put(localPath, remotePath)
-	if err != nil {
-		t.Error(err)
-	}
-	err = c.CloseClient()
-	if err != nil {
-		t.Error(err)
-	}
-
-	cancelFunc()
-
-	select {}
+	c.CloseClient()
 }

@@ -20,10 +20,7 @@ var mkdirObjectCmd = &cobra.Command{
 			fmt.Println("mkdir error")
 			log.Panic(err)
 		}
-		err = client.CloseClient()
-		if err != nil {
-			log.Panic(err)
-		}
+		client.CloseClient()
 		fmt.Println("mkdir successfully")
 	},
 }

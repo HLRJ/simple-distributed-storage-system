@@ -6,9 +6,9 @@ import (
 	"simple-distributed-storage-system/src/datanode"
 )
 
-var dataNodeServerAddr = flag.String("addr", "localhost:9000", "input this datanode address")
+var addr = flag.String("addr", "localhost:9000", "Node host address")
 
 func main() {
 	flag.Parse()
-	datanode.NewDataNodeServer(*dataNodeServerAddr).Setup(context.Background())
+	datanode.NewDataNodeServer(*addr).Setup(context.Background())
 }

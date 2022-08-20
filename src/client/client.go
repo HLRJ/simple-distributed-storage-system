@@ -5,10 +5,8 @@ import (
 	"errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"io/ioutil"
 	"os"
-	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/protos"
 	"simple-distributed-storage-system/src/utils"
 )
@@ -21,20 +19,19 @@ type client struct {
 
 func NewClient() *client {
 	// connect to namenode
-	conn, err := grpc.Dial(consts.NameNodeServerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	nameNode, conn, err := utils.ConnectToNameNode()
 	if err != nil {
 		log.Panic(err)
 	}
-
 	return &client{
 		blockSize: 0,
-		nameNode:  protos.NewNameNodeClient(conn),
+		nameNode:  nameNode,
 		conn:      conn,
 	}
 }
 
-func (c *client) CloseClient() error {
-	return c.conn.Close()
+func (c *client) CloseClient() {
+	c.conn.Close()
 }
 
 func (c *client) create(remotePath string, size uint64) error {
@@ -89,7 +86,12 @@ func (c *client) Get(remotePath, localPath string) error {
 		success := false
 		for _, addr := range reply.Addrs {
 			// connect to datanode and read data
-			datanode, conn := utils.ConnectToDataNode(addr)
+			datanode, conn, err := utils.ConnectToDataNode(addr)
+			if err != nil {
+				log.Warn(err)
+				continue
+			}
+
 			reply, err := datanode.Read(context.Background(), &protos.ReadRequest{
 				Uuid: reply.Uuid,
 			})
@@ -97,17 +99,11 @@ func (c *client) Get(remotePath, localPath string) error {
 			if err == nil {
 				success = true
 				data = append(data, reply.Data...)
-				err = conn.Close()
-				if err != nil {
-					return err
-				}
+				conn.Close()
 				break
 			} else {
 				log.Warn(err)
-				err = conn.Close()
-				if err != nil {
-					return err
-				}
+				conn.Close()
 				continue
 			}
 		}
@@ -160,9 +156,14 @@ func (c *client) Put(localPath, remotePath string) error {
 		for _, addr := range reply.Addrs {
 			// connect to datanode and write data
 			success := true
-			datanode, conn := utils.ConnectToDataNode(addr)
+			datanode, conn, err := utils.ConnectToDataNode(addr)
+			if err != nil {
+				log.Warn(err)
+				success = false
+				continue
+			}
 
-			_, err := datanode.Write(context.Background(), &protos.WriteRequest{
+			_, err = datanode.Write(context.Background(), &protos.WriteRequest{
 				Uuid: reply.Uuid,
 				Data: data[uint64(i)*c.blockSize : utils.Min(uint64(i+1)*c.blockSize, size)],
 			})
@@ -170,10 +171,7 @@ func (c *client) Put(localPath, remotePath string) error {
 				log.Warn(err)
 				success = false
 			}
-			err = conn.Close()
-			if err != nil {
-				return err
-			}
+			conn.Close()
 
 			if success {
 				validity[addr] = true
@@ -215,19 +213,21 @@ func (c *client) Remove(remotePath string) error {
 		for _, addr := range reply.Addrs {
 			// connect to datanode and remove data
 			success := true
-			datanode, conn := utils.ConnectToDataNode(addr)
+			datanode, conn, err := utils.ConnectToDataNode(addr)
+			if err != nil {
+				log.Warn(err)
+				success = false
+				continue
+			}
 
-			_, err := datanode.Remove(context.Background(), &protos.RemoveRequest{
+			_, err = datanode.Remove(context.Background(), &protos.RemoveRequest{
 				Uuid: reply.Uuid,
 			})
 			if err != nil {
 				log.Warn(err)
 				success = false
 			}
-			err = conn.Close()
-			if err != nil {
-				return err
-			}
+			conn.Close()
 
 			if success {
 				validity[addr] = false
@@ -253,8 +253,7 @@ func (c *client) Stat(remotePath string) (*protos.FileInfo, error) {
 		return nil, err
 	}
 	// 定位一个文件 输出就是一个文件信息
-	var fileInfo = reply.Infos[0]
-	return fileInfo, nil
+	return reply.Infos[0], nil
 }
 
 func (c *client) Mkdir(remotePath string) error {
@@ -273,10 +272,10 @@ func (c *client) Rename(remotePathSrc, remotePathDest string) error {
 	return nil
 }
 
-func (c *client) List(remotePath string) (*protos.FetchFileInfoReply, error) {
+func (c *client) List(remotePath string) ([]*protos.FileInfo, error) {
 	reply, err := c.nameNode.FetchFileInfo(context.Background(), &protos.FetchFileInfoRequest{Path: remotePath})
 	if err != nil {
-		return reply, err
+		return nil, err
 	}
-	return reply, nil
+	return reply.Infos, nil
 }

@@ -4,11 +4,10 @@ import (
 	"context"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"net"
 	"os"
-	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/protos"
+	"simple-distributed-storage-system/src/utils"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -58,12 +57,7 @@ func (s *dataNodeServer) Write(ctx context.Context, req *protos.WriteRequest) (*
 	if err != nil {
 		log.Panic(err)
 	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			log.Panic(err)
-		}
-	}(file)
+	defer file.Close()
 
 	_, err = file.Write(data)
 	if err != nil {
@@ -125,24 +119,17 @@ func (s *dataNodeServer) Setup(ctx context.Context) {
 	}()
 
 	// connect to namenode
-	conn, err := grpc.Dial(consts.NameNodeServerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+retry:
+	nameNode, conn, err := utils.ConnectToNameNode()
 	if err != nil {
 		log.Panic(err)
 	}
-	defer func(conn *grpc.ClientConn) {
-		err := conn.Close()
-		if err != nil {
-			log.Panic(err)
-		}
-	}(conn)
-
-	client := protos.NewNameNodeClient(conn)
-retry:
-	reply, err := client.RegisterDataNode(context.Background(), &protos.RegisterDataNodeRequest{Address: s.addr})
+	reply, err := nameNode.RegisterDataNode(context.Background(), &protos.RegisterDataNodeRequest{Address: s.addr})
 	if err != nil {
+		// TODO: max retries
+		conn.Close()
 		log.Warn(err)
 		time.Sleep(time.Second)
-		// TODO: max retries
 		goto retry
 	}
 
