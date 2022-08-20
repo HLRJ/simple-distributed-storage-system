@@ -27,7 +27,7 @@ func ConnectToNameNode(readonly bool) (protos.NameNodeClient, *grpc.ClientConn, 
 			continue
 		}
 		nameNode := protos.NewNameNodeClient(conn)
-		if readonly {
+		if !readonly {
 			// must connect to leader
 			_, err = nameNode.IsLeader(context.Background(), &protos.IsLeaderRequest{})
 			if err != nil {

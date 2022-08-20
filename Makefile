@@ -1,6 +1,6 @@
 .PHONY: server hello SDSS-ctl proto clean
 
-SDSS-ctl:
+SDSS-ctl: proto
 	go build -o bin/SDSS-ctl cmd/ctl/main.go
 
 server: proto

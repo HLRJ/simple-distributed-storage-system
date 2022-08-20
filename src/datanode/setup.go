@@ -42,7 +42,7 @@ func (s *dataNodeServer) Setup(ctx context.Context) {
 
 	// connect to namenode
 retry:
-	nameNode, conn, err := utils.ConnectToNameNode(true)
+	nameNode, conn, err := utils.ConnectToNameNode(false)
 	if err != nil {
 		log.Panic(err)
 	}

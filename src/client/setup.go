@@ -7,7 +7,7 @@ import (
 
 func NewClient() *client {
 	// connect to namenode
-	nameNode, conn, err := utils.ConnectToNameNode(true)
+	nameNode, conn, err := utils.ConnectToNameNode(false)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -20,7 +20,7 @@ func NewClient() *client {
 
 func NewReadonlyClient() *client {
 	// connect to namenode
-	nameNode, conn, err := utils.ConnectToNameNode(false)
+	nameNode, conn, err := utils.ConnectToNameNode(true)
 	if err != nil {
 		log.Panic(err)
 	}

@@ -23,7 +23,6 @@ func TestCrashOneDataNodeServer(t *testing.T) {
 	go datanode.NewDataNodeServer("localhost:9001").Setup(context.Background())
 	go datanode.NewDataNodeServer("localhost:9002").Setup(context.Background())
 	go datanode.NewDataNodeServer("localhost:9003").Setup(ctx)
-
 	time.Sleep(5 * time.Second)
 
 	localPath := "/tmp/README.md"
@@ -67,7 +66,6 @@ func TestCrashOneDataNodeServerAndReconnect(t *testing.T) {
 	go datanode.NewDataNodeServer("localhost:9000").Setup(context.Background())
 	go datanode.NewDataNodeServer("localhost:9001").Setup(context.Background())
 	go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
-
 	time.Sleep(5 * time.Second)
 
 	localPath := "/tmp/README.md"
@@ -113,7 +111,6 @@ func TestCrashOneNameNodeServer(t *testing.T) {
 	go datanode.NewDataNodeServer("localhost:9000").Setup(context.Background())
 	go datanode.NewDataNodeServer("localhost:9001").Setup(context.Background())
 	go datanode.NewDataNodeServer("localhost:9002").Setup(context.Background())
-
 	time.Sleep(5 * time.Second)
 
 	localPath := "/tmp/README.md"

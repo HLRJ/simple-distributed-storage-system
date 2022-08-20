@@ -60,7 +60,7 @@ func (s *nameNodeServer) syncRead(ctx context.Context) {
 
 		case <-time.After(syncReadDuration * time.Second):
 			if s.isLeader() {
-				return
+				break // not return
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -281,7 +281,7 @@ func (s *nameNodeServer) startHeartbeatTicker(ctx context.Context) {
 
 		case <-time.After(nameNodeHeartbeatDuration * time.Second):
 			if !s.isLeader() {
-				return
+				break // not return
 			}
 
 			s.mu.Lock()
