@@ -6,8 +6,9 @@ import (
 
 type dataNodeServer struct {
 	protos.UnimplementedDataNodeServer
-	addr      string
-	blockSize uint64
+	addr        string
+	blockSize   uint64
+	blockNumber uint64
 }
 
 func (s *dataNodeServer) localFileSystemRoot() string {

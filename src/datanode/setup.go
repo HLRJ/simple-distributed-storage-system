@@ -13,7 +13,8 @@ import (
 
 func NewDataNodeServer(addr string) *dataNodeServer {
 	return &dataNodeServer{
-		addr: addr,
+		addr:        addr,
+		blockNumber: 0,
 	}
 }
 

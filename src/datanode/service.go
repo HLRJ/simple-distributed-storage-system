@@ -48,12 +48,13 @@ func (s *dataNodeServer) Write(ctx context.Context, req *protos.WriteRequest) (*
 	if err != nil {
 		log.Panic(err)
 	}
+	s.blockNumber++
 	return &protos.WriteReply{}, nil
 }
 
 // HeartBeat 返回心跳包
 func (s *dataNodeServer) HeartBeat(ctx context.Context, in *protos.HeartBeatRequest) (*protos.HeartBeatReply, error) {
-	return &protos.HeartBeatReply{}, nil
+	return &protos.HeartBeatReply{BlockNumber: s.blockNumber}, nil
 }
 
 // Remove 删除文件
@@ -71,5 +72,6 @@ func (s *dataNodeServer) Remove(ctx context.Context, req *protos.RemoveRequest) 
 	if err != nil {
 		log.Panic(err)
 	}
+	s.blockNumber--
 	return &protos.RemoveReply{}, nil
 }
