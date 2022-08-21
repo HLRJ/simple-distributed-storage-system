@@ -14,7 +14,7 @@ var renameObjectCmd = &cobra.Command{
 	Short: "Rename object from src_path to dest_path",
 	Long:  `将分布式文件系统中的原始路径重命名为新的目标路径`,
 	Run: func(cmd *cobra.Command, args []string) {
-		client := client.NewClient()
+		client := client.NewClient(false)
 		err := client.Rename(args[0], args[1])
 		if err != nil {
 			fmt.Println("rename error")

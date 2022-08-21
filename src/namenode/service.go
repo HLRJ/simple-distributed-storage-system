@@ -11,24 +11,20 @@ import (
 	"strings"
 )
 
-func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockAddrsRequest) (*protos.GetBlockAddrsReply, error) {
-	if !s.isLeader() && in.Type == protos.GetBlockAddrsRequestType_OP_REMOVE {
-		return nil, errors.New(fmt.Sprintf("namenode server %v is not leader", s.addr))
-	}
+func (s *nameNodeServer) FetchBlockAddrs(ctx context.Context, in *protos.FetchBlockAddrsRequest) (*protos.FetchBlockAddrsReply, error) {
 	s.mu.Lock()
 	defer func() {
-		if in.Type == protos.GetBlockAddrsRequestType_OP_REMOVE {
-			s.syncPropose()
-		}
 		s.mu.Unlock()
 	}()
 
 	// get uuids
 	info, ok := s.sm.FileToInfo[in.Path]
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("file %v not exists", in.Path))
+		return nil, errors.New(fmt.Sprintf("path %v not exists", in.Path))
 	}
-
+	if utils.IsDir(in.Path) {
+		return nil, errors.New(fmt.Sprintf("cannot fetch block addr for dir %v", in.Path))
+	}
 	if uint64(len(info.Ids)) <= in.Index {
 		return nil, errors.New(fmt.Sprintf("index %v out of range %v", in.Index, len(info.Ids)))
 	}
@@ -51,10 +47,10 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 	for loc, ok := range locsInfo {
 		switch in.Type {
 		// existed
-		case protos.GetBlockAddrsRequestType_OP_REMOVE:
-			delete(s.sm.FileToInfo, in.Path) // modify state
+		case protos.FetchBlockAddrsRequestType_OP_REMOVE:
+			// lazy remove
 			fallthrough
-		case protos.GetBlockAddrsRequestType_OP_GET:
+		case protos.FetchBlockAddrsRequestType_OP_GET:
 			if ok {
 				addr, ok := s.sm.DataNodeLocToAddr[loc]
 				if ok {
@@ -63,7 +59,7 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 			}
 
 		// not existed
-		case protos.GetBlockAddrsRequestType_OP_PUT:
+		case protos.FetchBlockAddrsRequestType_OP_PUT:
 			if !ok {
 				addr, ok := s.sm.DataNodeLocToAddr[loc]
 				if ok {
@@ -77,7 +73,7 @@ func (s *nameNodeServer) GetBlockAddrs(ctx context.Context, in *protos.GetBlockA
 	log.Infof("namenode server %v get addrs %v for file %v at block #%v",
 		s.addr, addrs, in.Path, in.Index)
 
-	return &protos.GetBlockAddrsReply{
+	return &protos.FetchBlockAddrsReply{
 		Addrs: addrs,
 		Uuid:  bin,
 	}, nil
@@ -138,12 +134,28 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 		s.mu.Unlock()
 	}()
 
-	log.Infof("namenode server %v create file %v", s.addr, in.Path)
+	log.Infof("namenode server %v create path %v", s.addr, in.Path)
 
-	// check file existence
+	// check path existence
 	_, ok := s.sm.FileToInfo[in.Path]
 	if ok {
-		return nil, errors.New(fmt.Sprintf("file %v already exists", in.Path))
+		return nil, errors.New(fmt.Sprintf("path %v already exists", in.Path))
+	}
+
+	// check dir existence
+	var parentDir string
+	if !utils.IsDir(in.Path) {
+		index := strings.LastIndex(in.Path, "/")
+		// include '/'
+		parentDir = in.Path[:index+1]
+	} else {
+		index := strings.LastIndex(in.Path[:len(in.Path)-1], "/") // remove last '/'
+		// include '/'
+		parentDir = in.Path[:index+1]
+	}
+	_, ok = s.sm.FileToInfo[parentDir]
+	if !ok {
+		return nil, errors.New(fmt.Sprintf("parent dir %v not exists, create path %v fails", parentDir, in.Path))
 	}
 
 	// calculate blocks and assign uuids
@@ -184,12 +196,16 @@ func (s *nameNodeServer) Open(ctx context.Context, in *protos.OpenRequest) (*pro
 		s.mu.Unlock()
 	}()
 
-	log.Infof("namenode server %v open file %v", s.addr, in.Path)
+	log.Infof("namenode server %v open path %v", s.addr, in.Path)
 
 	// check file existence
 	info, ok := s.sm.FileToInfo[in.Path]
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("file %v not exists", in.Path))
+		return nil, errors.New(fmt.Sprintf("path %v not exists", in.Path))
+	}
+
+	if utils.IsDir(in.Path) {
+		return nil, errors.New(fmt.Sprintf("cannot open dir %v", in.Path))
 	}
 
 	// return blocks
@@ -251,7 +267,7 @@ func (s *nameNodeServer) FetchFileInfo(ctx context.Context, in *protos.FetchFile
 	}
 
 	var infos []*protos.FileInfo
-	if in.Path[len(in.Path)-1] != '/' { // is file
+	if !utils.IsDir(in.Path) { // is file
 		infos = append(infos, &protos.FileInfo{
 			Name: in.Path,
 			Size: info.Size,
@@ -282,21 +298,22 @@ func (s *nameNodeServer) Rename(ctx context.Context, in *protos.RenameRequest) (
 
 	log.Infof("namenode server %v trying to rename %v -> %v", s.addr, in.OldPath, in.NewPath)
 
-	// check file existence
+	// check path existence
 	info, ok := s.sm.FileToInfo[in.OldPath]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("path %v not exists", in.OldPath))
 	}
 
-	delete(s.sm.FileToInfo, in.OldPath)
-	s.sm.FileToInfo[in.NewPath] = info
+	if !utils.IsDir(in.OldPath) && !utils.IsDir(in.NewPath) {
+		delete(s.sm.FileToInfo, in.OldPath)
+		s.sm.FileToInfo[in.NewPath] = info
+	} else {
+		return nil, errors.New("only support rename from file to file")
+	}
 
 	return &protos.RenameReply{}, nil
 }
 
 func (s *nameNodeServer) IsLeader(ctx context.Context, in *protos.IsLeaderRequest) (*protos.IsLeaderReply, error) {
-	if !s.isLeader() {
-		return nil, errors.New(fmt.Sprintf("namenode server %v is not leader", s.addr))
-	}
-	return &protos.IsLeaderReply{}, nil
+	return &protos.IsLeaderReply{Res: s.isLeader()}, nil
 }

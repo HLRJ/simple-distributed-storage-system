@@ -38,3 +38,7 @@ func RandomChooseLocs(locs []int, count int) ([]int, error) {
 	}
 	return result, nil
 }
+
+func IsDir(path string) bool {
+	return path[len(path)-1] == '/'
+}

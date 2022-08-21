@@ -5,7 +5,7 @@ package protos;
 option go_package = "../protos";
 
 service NameNode {
-  rpc GetBlockAddrs(GetBlockAddrsRequest) returns (GetBlockAddrsReply) {}
+  rpc FetchBlockAddrs(FetchBlockAddrsRequest) returns (FetchBlockAddrsReply) {}
   rpc RegisterDataNode(RegisterDataNodeRequest) returns (RegisterDataNodeReply) {}
   rpc Create(CreateRequest) returns (CreateReply) {}
   rpc Open(OpenRequest) returns (OpenReply) {}
@@ -15,17 +15,17 @@ service NameNode {
   rpc IsLeader(IsLeaderRequest) returns (IsLeaderReply) {}
 }
 
-enum GetBlockAddrsRequestType {
+enum FetchBlockAddrsRequestType {
   OP_GET = 0;
   OP_PUT = 1;
   OP_REMOVE = 2;
 }
-message GetBlockAddrsRequest {
+message FetchBlockAddrsRequest {
   string path = 1;
   uint64 index = 2;
-  GetBlockAddrsRequestType type = 3;
+  FetchBlockAddrsRequestType type = 3;
 }
-message GetBlockAddrsReply {
+message FetchBlockAddrsReply {
   repeated string addrs = 1;
   bytes uuid = 2;
 }
@@ -77,4 +77,6 @@ message RenameRequest {
 message RenameReply {}
 
 message IsLeaderRequest {}
-message IsLeaderReply {}
+message IsLeaderReply {
+  bool res = 1;
+}

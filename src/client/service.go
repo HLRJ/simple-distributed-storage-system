@@ -11,6 +11,8 @@ import (
 )
 
 func (c *client) Get(remotePath, localPath string) error {
+	c.testConnection()
+
 	var data []byte
 
 	blocks, err := c.open(remotePath)
@@ -20,10 +22,10 @@ func (c *client) Get(remotePath, localPath string) error {
 
 	for i := 0; i < blocks; i++ {
 		// get block locs
-		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
+		reply, err := c.namenode.FetchBlockAddrs(context.Background(), &protos.FetchBlockAddrsRequest{
 			Path:  remotePath,
 			Index: uint64(i),
-			Type:  protos.GetBlockAddrsRequestType_OP_GET,
+			Type:  protos.FetchBlockAddrsRequestType_OP_GET,
 		})
 		if err != nil {
 			return err
@@ -32,7 +34,7 @@ func (c *client) Get(remotePath, localPath string) error {
 		success := false
 		for _, addr := range reply.Addrs {
 			// connect to datanode and read data
-			datanode, conn, err := utils.ConnectToDataNode(addr)
+			datanode, conn, err := utils.ConnectToTargetDataNode(addr)
 			if err != nil {
 				log.Warn(err)
 				continue
@@ -73,6 +75,8 @@ func (c *client) Get(remotePath, localPath string) error {
 }
 
 func (c *client) Put(localPath, remotePath string) error {
+	c.testConnection()
+
 	// read file
 	data, err := ioutil.ReadFile(localPath)
 	if err != nil {
@@ -88,10 +92,10 @@ func (c *client) Put(localPath, remotePath string) error {
 	blocks := utils.CeilDiv(size, c.blockSize)
 	for i := 0; i < blocks; i++ {
 		// get block locs
-		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
+		reply, err := c.namenode.FetchBlockAddrs(context.Background(), &protos.FetchBlockAddrsRequest{
 			Path:  remotePath,
 			Index: uint64(i),
-			Type:  protos.GetBlockAddrsRequestType_OP_PUT,
+			Type:  protos.FetchBlockAddrsRequestType_OP_PUT,
 		})
 		if err != nil {
 			return err
@@ -102,7 +106,7 @@ func (c *client) Put(localPath, remotePath string) error {
 		for _, addr := range reply.Addrs {
 			// connect to datanode and write data
 			success := true
-			datanode, conn, err := utils.ConnectToDataNode(addr)
+			datanode, conn, err := utils.ConnectToTargetDataNode(addr)
 			if err != nil {
 				log.Warn(err)
 				success = false
@@ -125,7 +129,7 @@ func (c *client) Put(localPath, remotePath string) error {
 		}
 
 		// notify validity
-		_, err = c.nameNode.LocsValidityNotify(context.Background(), &protos.LocsValidityNotifyRequest{
+		_, err = c.namenode.LocsValidityNotify(context.Background(), &protos.LocsValidityNotifyRequest{
 			Uuid:     reply.Uuid,
 			Validity: validity,
 		})
@@ -138,6 +142,8 @@ func (c *client) Put(localPath, remotePath string) error {
 }
 
 func (c *client) Remove(remotePath string) error {
+	c.testConnection()
+
 	blocks, err := c.open(remotePath)
 	if err != nil {
 		return err
@@ -145,10 +151,10 @@ func (c *client) Remove(remotePath string) error {
 
 	for i := 0; i < blocks; i++ {
 		// get block locs
-		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
+		reply, err := c.namenode.FetchBlockAddrs(context.Background(), &protos.FetchBlockAddrsRequest{
 			Path:  remotePath,
 			Index: uint64(i),
-			Type:  protos.GetBlockAddrsRequestType_OP_REMOVE,
+			Type:  protos.FetchBlockAddrsRequestType_OP_REMOVE,
 		})
 		if err != nil {
 			return err
@@ -159,7 +165,7 @@ func (c *client) Remove(remotePath string) error {
 		for _, addr := range reply.Addrs {
 			// connect to datanode and remove data
 			success := true
-			datanode, conn, err := utils.ConnectToDataNode(addr)
+			datanode, conn, err := utils.ConnectToTargetDataNode(addr)
 			if err != nil {
 				log.Warn(err)
 				success = false
@@ -181,7 +187,7 @@ func (c *client) Remove(remotePath string) error {
 		}
 
 		// notify validity
-		_, err = c.nameNode.LocsValidityNotify(context.Background(), &protos.LocsValidityNotifyRequest{
+		_, err = c.namenode.LocsValidityNotify(context.Background(), &protos.LocsValidityNotifyRequest{
 			Uuid:     reply.Uuid,
 			Validity: validity,
 		})
@@ -194,7 +200,9 @@ func (c *client) Remove(remotePath string) error {
 }
 
 func (c *client) Stat(remotePath string) (*protos.FileInfo, error) {
-	reply, err := c.nameNode.FetchFileInfo(context.Background(), &protos.FetchFileInfoRequest{Path: remotePath})
+	c.testConnection()
+
+	reply, err := c.namenode.FetchFileInfo(context.Background(), &protos.FetchFileInfoRequest{Path: remotePath})
 	if err != nil {
 		return nil, err
 	}
@@ -202,6 +210,8 @@ func (c *client) Stat(remotePath string) (*protos.FileInfo, error) {
 }
 
 func (c *client) Mkdir(remotePath string) error {
+	c.testConnection()
+
 	err := c.create(remotePath, 0)
 	if err != nil {
 		return err
@@ -210,7 +220,9 @@ func (c *client) Mkdir(remotePath string) error {
 }
 
 func (c *client) Rename(remotePathSrc, remotePathDest string) error {
-	_, err := c.nameNode.Rename(context.Background(), &protos.RenameRequest{OldPath: remotePathSrc, NewPath: remotePathDest})
+	c.testConnection()
+
+	_, err := c.namenode.Rename(context.Background(), &protos.RenameRequest{OldPath: remotePathSrc, NewPath: remotePathDest})
 	if err != nil {
 		return err
 	}
@@ -218,7 +230,9 @@ func (c *client) Rename(remotePathSrc, remotePathDest string) error {
 }
 
 func (c *client) List(remotePath string) ([]*protos.FileInfo, error) {
-	reply, err := c.nameNode.FetchFileInfo(context.Background(), &protos.FetchFileInfoRequest{Path: remotePath})
+	c.testConnection()
+
+	reply, err := c.namenode.FetchFileInfo(context.Background(), &protos.FetchFileInfoRequest{Path: remotePath})
 	if err != nil {
 		return nil, err
 	}

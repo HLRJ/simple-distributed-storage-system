@@ -3,7 +3,11 @@ package test
 import (
 	"bytes"
 	"context"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
+	"os"
 	"simple-distributed-storage-system/src/client"
 	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/datanode"
@@ -12,136 +16,134 @@ import (
 	"time"
 )
 
-func TestCrashOneDataNodeServer(t *testing.T) {
-	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(context.Background())
-	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(context.Background())
-	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(context.Background())
-	time.Sleep(5 * time.Second)
-
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	go datanode.NewDataNodeServer("localhost:9000").Setup(context.Background())
-	go datanode.NewDataNodeServer("localhost:9001").Setup(context.Background())
-	go datanode.NewDataNodeServer("localhost:9002").Setup(context.Background())
-	go datanode.NewDataNodeServer("localhost:9003").Setup(ctx)
-	time.Sleep(5 * time.Second)
-
-	localPath := "/tmp/README.md"
-	remotePath := "/doc/README.md"
-	localCopyPath := "/tmp/foo.md"
-
-	c := client.NewClient()
-	data, err := ioutil.ReadFile(localPath)
-	if err != nil {
-		panic(err)
-	}
-	err = c.Put(localPath, remotePath)
-	if err != nil {
-		t.Error(err)
-	}
-
-	cancelFunc()
-	time.Sleep(5 * time.Second)
-
-	err = c.Get(remotePath, localCopyPath)
-	if err != nil {
-		t.Error(err)
-	}
-	dataCopy, err := ioutil.ReadFile(localCopyPath)
-	if err != nil {
-		panic(err)
-	}
-	if !bytes.Equal(dataCopy, data) {
-		panic("inconsistent data")
-	}
-	c.CloseClient()
+func TestCrash(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "CRASH TESTS")
 }
 
-func TestCrashOneDataNodeServerAndReconnect(t *testing.T) {
-	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(context.Background())
-	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(context.Background())
-	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(context.Background())
-	time.Sleep(5 * time.Second)
+var _ = Describe("CRASH TESTS", func() {
+	BeforeEach(func() {
+		err := os.RemoveAll(consts.RaftPersistenceDataDir)
+		if err != nil {
+			log.Warn(err)
+		}
+	})
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	go datanode.NewDataNodeServer("localhost:9000").Setup(context.Background())
-	go datanode.NewDataNodeServer("localhost:9001").Setup(context.Background())
-	go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
-	time.Sleep(5 * time.Second)
+	AfterEach(func() {
+		// wait for resources to be released
+		time.Sleep(5 * time.Second)
+	})
 
-	localPath := "/tmp/README.md"
-	remotePath := "/doc/README.md"
-	localCopyPath := "/tmp/foo.md"
+	It("Crash one datanode server", func() {
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
+		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
+		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(ctx)
+		time.Sleep(5 * time.Second)
 
-	c := client.NewClient()
-	data, err := ioutil.ReadFile(localPath)
-	if err != nil {
-		panic(err)
-	}
-	err = c.Put(localPath, remotePath)
-	if err != nil {
-		t.Error(err)
-	}
+		ctxTarget, cancelFuncTarget := context.WithCancel(context.Background())
+		go datanode.NewDataNodeServer("localhost:9000").Setup(ctx)
+		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
+		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
+		go datanode.NewDataNodeServer("localhost:9003").Setup(ctxTarget)
+		time.Sleep(5 * time.Second)
 
-	cancelFunc()
-	time.Sleep(time.Second)
-	go datanode.NewDataNodeServer("localhost:9002").Setup(context.Background())
-	time.Sleep(5 * time.Second)
+		localPath := "../README.md"
+		remotePath := "/README.md"
+		localCopyPath := "/tmp/README.md"
 
-	err = c.Get(remotePath, localCopyPath)
-	if err != nil {
-		t.Error(err)
-	}
-	dataCopy, err := ioutil.ReadFile(localCopyPath)
-	if err != nil {
-		panic(err)
-	}
-	if !bytes.Equal(dataCopy, data) {
-		panic("inconsistent data")
-	}
-	c.CloseClient()
-}
+		c := client.NewClient(false)
+		data, err := ioutil.ReadFile(localPath)
+		Expect(err).To(BeNil())
+		err = c.Put(localPath, remotePath)
+		Expect(err).To(BeNil())
 
-func TestCrashOneNameNodeServer(t *testing.T) {
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
-	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(context.Background())
-	go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(context.Background())
-	time.Sleep(5 * time.Second)
+		cancelFuncTarget()
+		time.Sleep(5 * time.Second) // for data migration
 
-	go datanode.NewDataNodeServer("localhost:9000").Setup(context.Background())
-	go datanode.NewDataNodeServer("localhost:9001").Setup(context.Background())
-	go datanode.NewDataNodeServer("localhost:9002").Setup(context.Background())
-	time.Sleep(5 * time.Second)
+		err = c.Get(remotePath, localCopyPath)
+		Expect(err).To(BeNil())
+		dataCopy, err := ioutil.ReadFile(localCopyPath)
+		Expect(err).To(BeNil())
+		Expect(bytes.Equal(dataCopy, data)).To(BeTrue())
 
-	localPath := "/tmp/README.md"
-	remotePath := "/doc/README.md"
-	localCopyPath := "/tmp/foo.md"
+		c.CloseClient()
+		cancelFunc()
+	})
 
-	c := client.NewClient()
-	data, err := ioutil.ReadFile(localPath)
-	if err != nil {
-		panic(err)
-	}
-	err = c.Put(localPath, remotePath)
-	if err != nil {
-		t.Error(err)
-	}
-	c.CloseClient()
+	It("Crash one datanode server and reconnect", func() {
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
+		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
+		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(ctx)
+		time.Sleep(5 * time.Second)
 
-	cancelFunc()
-	time.Sleep(5 * time.Second)
+		ctxTarget, cancelFuncTarget := context.WithCancel(context.Background())
+		go datanode.NewDataNodeServer("localhost:9000").Setup(ctx)
+		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
+		go datanode.NewDataNodeServer("localhost:9002").Setup(ctxTarget)
+		time.Sleep(5 * time.Second)
 
-	c = client.NewClient() // new client
-	err = c.Get(remotePath, localCopyPath)
-	if err != nil {
-		t.Error(err)
-	}
-	dataCopy, err := ioutil.ReadFile(localCopyPath)
-	if err != nil {
-		panic(err)
-	}
-	if !bytes.Equal(dataCopy, data) {
-		panic("inconsistent data")
-	}
-	c.CloseClient()
-}
+		localPath := "../README.md"
+		remotePath := "/README.md"
+		localCopyPath := "/tmp/README.md"
+
+		c := client.NewClient(false)
+		data, err := ioutil.ReadFile(localPath)
+		Expect(err).To(BeNil())
+		err = c.Put(localPath, remotePath)
+		Expect(err).To(BeNil())
+
+		cancelFuncTarget()
+		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
+		time.Sleep(5 * time.Second) // for registration
+
+		err = c.Get(remotePath, localCopyPath)
+		Expect(err).To(BeNil())
+		dataCopy, err := ioutil.ReadFile(localCopyPath)
+		Expect(err).To(BeNil())
+		Expect(bytes.Equal(dataCopy, data)).To(BeTrue())
+
+		c.CloseClient()
+		cancelFunc()
+	})
+
+	It("Crash one namenode server", func() {
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		ctxTarget, cancelFuncTarget := context.WithCancel(context.Background())
+
+		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctxTarget)
+		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
+		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(ctx)
+		time.Sleep(5 * time.Second)
+
+		go datanode.NewDataNodeServer("localhost:9000").Setup(ctx)
+		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
+		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
+		time.Sleep(5 * time.Second)
+
+		localPath := "../README.md"
+		remotePath := "/README.md"
+		localCopyPath := "/tmp/README.md"
+
+		c := client.NewClient(false)
+		data, err := ioutil.ReadFile(localPath)
+		Expect(err).To(BeNil())
+		err = c.Put(localPath, remotePath)
+		Expect(err).To(BeNil())
+		c.CloseClient()
+
+		time.Sleep(5 * time.Second) // for sync read
+		cancelFuncTarget()
+		time.Sleep(5 * time.Second) // for new leader
+
+		err = c.Get(remotePath, localCopyPath)
+		Expect(err).To(BeNil())
+		dataCopy, err := ioutil.ReadFile(localCopyPath)
+		Expect(err).To(BeNil())
+		Expect(bytes.Equal(dataCopy, data)).To(BeTrue())
+
+		c.CloseClient()
+		cancelFunc()
+	})
+})

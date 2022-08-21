@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	replicaFactor             = 3
-	nameNodeHeartbeatDuration = 5
-	syncReadDuration          = 5
+	replicaFactor     = 3
+	heartbeatDuration = 5
+	syncReadDuration  = 3
 
 	blockSize uint64 = 64
 )
@@ -60,6 +60,7 @@ func (s *nameNodeServer) syncRead(ctx context.Context) {
 
 		case <-time.After(syncReadDuration * time.Second):
 			if s.isLeader() {
+				log.Infof("namenode server %v is leader, skip sync read, now state %v", s.addr, s.sm)
 				break // not return
 			}
 
@@ -71,6 +72,8 @@ func (s *nameNodeServer) syncRead(ctx context.Context) {
 				s.mu.Lock()
 				s.decodeState(result.([]byte))
 				s.mu.Unlock()
+			} else {
+				log.Warn(err)
 			}
 		}
 	}
@@ -83,6 +86,7 @@ func (s *nameNodeServer) syncPropose() {
 	cancel()
 
 	if err != nil {
+		// TODO: forced synchronization
 		log.Warnf("namenode server %v sync propose returned error %v", s.addr, err)
 	} else {
 		log.Infof("namenode server %v successfully syncing propose", s.addr)
@@ -112,7 +116,7 @@ func (s *nameNodeServer) encodeState() []byte {
 }
 
 func (s *nameNodeServer) decodeState(state []byte) {
-	log.Infof("namenode server %v decode state", s.addr)
+	log.Infof("namenode server %v decode state %v", s.addr, state)
 	r := bytes.NewBuffer(state)
 	decoder := gob.NewDecoder(r)
 	var sm nameNodeState
@@ -221,7 +225,7 @@ func (s *nameNodeServer) dataMigration(loc int) bool {
 			log.Infof("uuid %v -> copy from %v to %v", id, fromAddr, toAddr)
 
 			// connect to datanode server and read data
-			datanode, conn, err := utils.ConnectToDataNode(fromAddr)
+			datanode, conn, err := utils.ConnectToTargetDataNode(fromAddr)
 			if err != nil {
 				log.Warn(err)
 				log.Warnf("unable to migrate data for %v", id)
@@ -246,7 +250,7 @@ func (s *nameNodeServer) dataMigration(loc int) bool {
 			conn.Close()
 
 			// connect to datanode server and write data
-			datanode, conn, err = utils.ConnectToDataNode(toAddr)
+			datanode, conn, err = utils.ConnectToTargetDataNode(toAddr)
 			if err != nil {
 				log.Warn(err)
 				log.Warnf("unable to migrate data for %v", id)
@@ -272,14 +276,14 @@ func (s *nameNodeServer) dataMigration(loc int) bool {
 	return !failed
 }
 
-func (s *nameNodeServer) startHeartbeatTicker(ctx context.Context) {
+func (s *nameNodeServer) heartbeatTicker(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
 			log.Infof("namenode server %v stop heartbeat", s.addr)
 			return
 
-		case <-time.After(nameNodeHeartbeatDuration * time.Second):
+		case <-time.After(heartbeatDuration * time.Second):
 			if !s.isLeader() {
 				break // not return
 			}
@@ -291,7 +295,7 @@ func (s *nameNodeServer) startHeartbeatTicker(ctx context.Context) {
 			for _, loc := range locs {
 				addr, ok := s.sm.DataNodeLocToAddr[loc]
 				if ok {
-					datanode, conn, err := utils.ConnectToDataNode(addr)
+					datanode, conn, err := utils.ConnectToTargetDataNode(addr)
 					if err != nil {
 						// delete unreachable datanode server
 						log.Warn(err)
