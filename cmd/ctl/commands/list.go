@@ -17,7 +17,6 @@ var listObjectCmd = &cobra.Command{
 		client := client.NewClient(true)
 		infos, err := client.List(args[0])
 		if err != nil {
-			fmt.Println("list error")
 			log.Panic(err)
 		}
 		client.CloseClient()

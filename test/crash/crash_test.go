@@ -34,6 +34,10 @@ var _ = Describe("CRASH TESTS", func() {
 		time.Sleep(5 * time.Second)
 	})
 
+	localPath := "../../LICENSE"
+	remotePath := "/LICENSE"
+	localCopyPath := "/tmp/LICENSE"
+
 	It("Crash one datanode server", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
@@ -47,10 +51,6 @@ var _ = Describe("CRASH TESTS", func() {
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9003").Setup(ctxTarget)
 		time.Sleep(5 * time.Second)
-
-		localPath := "../README.md"
-		remotePath := "/README.md"
-		localCopyPath := "/tmp/README.md"
 
 		c := client.NewClient(false)
 		data, err := ioutil.ReadFile(localPath)
@@ -83,10 +83,6 @@ var _ = Describe("CRASH TESTS", func() {
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctxTarget)
 		time.Sleep(5 * time.Second)
-
-		localPath := "../README.md"
-		remotePath := "/README.md"
-		localCopyPath := "/tmp/README.md"
 
 		c := client.NewClient(false)
 		data, err := ioutil.ReadFile(localPath)
@@ -121,10 +117,6 @@ var _ = Describe("CRASH TESTS", func() {
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
 		time.Sleep(5 * time.Second)
-
-		localPath := "../README.md"
-		remotePath := "/README.md"
-		localCopyPath := "/tmp/README.md"
 
 		c := client.NewClient(false)
 		data, err := ioutil.ReadFile(localPath)

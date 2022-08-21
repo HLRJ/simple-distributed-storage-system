@@ -1,7 +1,7 @@
 package commands
 
 import (
-	"fmt"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"simple-distributed-storage-system/src/client"
 )
@@ -16,10 +16,9 @@ var getObjectCmd = &cobra.Command{
 		client := client.NewClient(true)
 		err := client.Get(args[0], args[1])
 		if err != nil {
-			fmt.Println("get file error")
+			log.Panic(err)
 		}
 		client.CloseClient()
-		fmt.Println("get successfully")
 	},
 }
 

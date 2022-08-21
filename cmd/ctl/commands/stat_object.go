@@ -17,7 +17,6 @@ var statObjectCmd = &cobra.Command{
 		client := client.NewClient(true)
 		info, err := client.Stat(args[0])
 		if err != nil {
-			fmt.Println("stat error")
 			log.Panic(err)
 		}
 		client.CloseClient()
