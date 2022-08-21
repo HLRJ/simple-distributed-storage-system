@@ -20,10 +20,10 @@ func (c *client) Get(remotePath, localPath string) error {
 
 	for i := 0; i < blocks; i++ {
 		// get block locs
-		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
+		reply, err := c.nameNode.FetchBlockAddrs(context.Background(), &protos.FetchBlockAddrsRequest{
 			Path:  remotePath,
 			Index: uint64(i),
-			Type:  protos.GetBlockAddrsRequestType_OP_GET,
+			Type:  protos.FetchBlockAddrsRequestType_OP_GET,
 		})
 		if err != nil {
 			return err
@@ -88,10 +88,10 @@ func (c *client) Put(localPath, remotePath string) error {
 	blocks := utils.CeilDiv(size, c.blockSize)
 	for i := 0; i < blocks; i++ {
 		// get block locs
-		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
+		reply, err := c.nameNode.FetchBlockAddrs(context.Background(), &protos.FetchBlockAddrsRequest{
 			Path:  remotePath,
 			Index: uint64(i),
-			Type:  protos.GetBlockAddrsRequestType_OP_PUT,
+			Type:  protos.FetchBlockAddrsRequestType_OP_PUT,
 		})
 		if err != nil {
 			return err
@@ -145,10 +145,10 @@ func (c *client) Remove(remotePath string) error {
 
 	for i := 0; i < blocks; i++ {
 		// get block locs
-		reply, err := c.nameNode.GetBlockAddrs(context.Background(), &protos.GetBlockAddrsRequest{
+		reply, err := c.nameNode.FetchBlockAddrs(context.Background(), &protos.FetchBlockAddrsRequest{
 			Path:  remotePath,
 			Index: uint64(i),
-			Type:  protos.GetBlockAddrsRequestType_OP_REMOVE,
+			Type:  protos.FetchBlockAddrsRequestType_OP_REMOVE,
 		})
 		if err != nil {
 			return err

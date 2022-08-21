@@ -20,7 +20,7 @@ const (
 )
 
 func NewNameNodeServer(addr string, replicaID uint64) *nameNodeServer {
-	return &nameNodeServer{
+	res := &nameNodeServer{
 		addr:      addr,
 		replicaID: replicaID,
 		sm: nameNodeState{
@@ -30,6 +30,12 @@ func NewNameNodeServer(addr string, replicaID uint64) *nameNodeServer {
 			UUIDToDataNodeLocsInfo: make(map[uuid.UUID]map[int]bool),
 		},
 	}
+	// setup root path
+	res.sm.FileToInfo["/"] = fileInfo{
+		Ids:  []uuid.UUID{},
+		Size: 0,
+	}
+	return res
 }
 
 func (s *nameNodeServer) Setup(ctx context.Context) {
@@ -53,7 +59,7 @@ func (s *nameNodeServer) Setup(ctx context.Context) {
 	}()
 
 	// start heartbeat ticker
-	go s.startHeartbeatTicker(ctx)
+	go s.heartbeatTicker(ctx)
 
 	// start sync read
 	go s.syncRead(ctx)
@@ -61,7 +67,10 @@ func (s *nameNodeServer) Setup(ctx context.Context) {
 	// blocked here
 	select {
 	case <-ctx.Done():
+		// stop server
 		server.Stop()
+		// close cluster
+		s.nh.Close()
 		log.Infof("namenode server %v quitting", s.addr)
 		return
 	}
@@ -76,13 +85,12 @@ func (s *nameNodeServer) setupCluster() {
 	}
 
 	// change the log verbosity
-	logger.GetLogger("raft").SetLevel(logger.ERROR)
-	logger.GetLogger("rsm").SetLevel(logger.WARNING)
-	logger.GetLogger("transport").SetLevel(logger.WARNING)
-	logger.GetLogger("grpc").SetLevel(logger.WARNING)
+	logger.GetLogger("raft").SetLevel(logger.CRITICAL)
+	logger.GetLogger("rsm").SetLevel(logger.CRITICAL)
+	logger.GetLogger("transport").SetLevel(logger.CRITICAL)
+	logger.GetLogger("grpc").SetLevel(logger.CRITICAL)
 
 	// config for raft node
-	// See GoDoc for all available options
 	rc := config.Config{
 		// ShardID and ReplicaID of the raft node
 		ReplicaID: s.replicaID,
@@ -108,7 +116,7 @@ func (s *nameNodeServer) setupCluster() {
 		// willing use on Raft Logs, how fast can you capture a snapshot of your
 		// replicated state machine, how often such snapshot is going to be used
 		// etc.
-		SnapshotEntries: 10,
+		SnapshotEntries: 100,
 		// Once a snapshot is captured and saved, how many Raft entries already
 		// covered by the new snapshot should be kept. This is useful when some
 		// followers are just a little bit left behind, with such overhead Raft
@@ -117,7 +125,7 @@ func (s *nameNodeServer) setupCluster() {
 		CompactionOverhead: 5,
 	}
 
-	datadir := filepath.Join("data", fmt.Sprintf("node%v", s.replicaID))
+	datadir := filepath.Join(consts.RaftPersistenceDataDir, fmt.Sprintf("node%v", s.replicaID))
 	// config for the nodehost
 	// See GoDoc for all available options
 	// by default, insecure transport is used, you can choose to use Mutual TLS

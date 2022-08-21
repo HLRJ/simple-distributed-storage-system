@@ -11,4 +11,5 @@ var (
 		"localhost:8889",
 		"localhost:8900",
 	}
+	RaftPersistenceDataDir = "data"
 )

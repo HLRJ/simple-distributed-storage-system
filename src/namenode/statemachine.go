@@ -16,7 +16,8 @@ type StateMachine struct {
 	State     nameNodeState
 }
 
-func (s StateMachine) Update(entry sm.Entry) (sm.Result, error) {
+func (s *StateMachine) Update(entry sm.Entry) (sm.Result, error) {
+	log.Infof("replica %v update state machine with %v", s.ReplicaID, entry.Cmd)
 	r := bytes.NewBuffer(entry.Cmd)
 	decoder := gob.NewDecoder(r)
 	var state nameNodeState
@@ -25,11 +26,11 @@ func (s StateMachine) Update(entry sm.Entry) (sm.Result, error) {
 		log.Panic(err)
 	}
 	s.State = state
-	log.Infof("replica %v update state machine %v", s.ReplicaID, s.State)
+	log.Infof("replica %v now state %v after update", s.ReplicaID, s.State)
 	return sm.Result{Value: uint64(len(entry.Cmd))}, nil
 }
 
-func (s StateMachine) Lookup(i interface{}) (interface{}, error) {
+func (s *StateMachine) Lookup(i interface{}) (interface{}, error) {
 	log.Infof("replica %v lookup state machine %v", s.ReplicaID, s.State)
 	w := new(bytes.Buffer)
 	encoder := gob.NewEncoder(w)
@@ -37,10 +38,11 @@ func (s StateMachine) Lookup(i interface{}) (interface{}, error) {
 	if err != nil {
 		log.Panic(err)
 	}
+	log.Infof("replica %v lookup state machine return %v", s.ReplicaID, w.Bytes())
 	return w.Bytes(), nil
 }
 
-func (s StateMachine) SaveSnapshot(writer io.Writer, collection sm.ISnapshotFileCollection, i <-chan struct{}) error {
+func (s *StateMachine) SaveSnapshot(writer io.Writer, collection sm.ISnapshotFileCollection, i <-chan struct{}) error {
 	w := new(bytes.Buffer)
 	encoder := gob.NewEncoder(w)
 	err := encoder.Encode(s.State)
@@ -51,10 +53,10 @@ func (s StateMachine) SaveSnapshot(writer io.Writer, collection sm.ISnapshotFile
 	return err
 }
 
-func (s StateMachine) RecoverFromSnapshot(reader io.Reader, files []sm.SnapshotFile, i <-chan struct{}) error {
+func (s *StateMachine) RecoverFromSnapshot(reader io.Reader, files []sm.SnapshotFile, i <-chan struct{}) error {
 	data, err := ioutil.ReadAll(reader)
 	if err != nil {
-		return err
+		log.Panic(err)
 	}
 	r := bytes.NewBuffer(data)
 	decoder := gob.NewDecoder(r)
@@ -67,12 +69,11 @@ func (s StateMachine) RecoverFromSnapshot(reader io.Reader, files []sm.SnapshotF
 	return nil
 }
 
-func (s StateMachine) Close() error {
+func (s *StateMachine) Close() error {
 	return nil
 }
 
-func NewStateMachine(shardID uint64,
-	replicaID uint64) sm.IStateMachine {
+func NewStateMachine(shardID uint64, replicaID uint64) sm.IStateMachine {
 	return &StateMachine{
 		ShardID:   shardID,
 		ReplicaID: replicaID,
