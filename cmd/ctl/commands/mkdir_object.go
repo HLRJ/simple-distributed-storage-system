@@ -14,7 +14,7 @@ var mkdirObjectCmd = &cobra.Command{
 	Short: "Mkdir object from SDSS cluster",
 	Long:  `在分布式文件存储系统中创建给定的目录路径`,
 	Run: func(cmd *cobra.Command, args []string) {
-		client := client.NewClient()
+		client := client.NewClient(false)
 		err := client.Mkdir(args[0])
 		if err != nil {
 			fmt.Println("mkdir error")

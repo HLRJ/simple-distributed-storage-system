@@ -13,7 +13,7 @@ var delObjectCmd = &cobra.Command{
 	Short: "Del object from SDSS cluster",
 	Long:  `删除分布式文件存储系统中的文件`,
 	Run: func(cmd *cobra.Command, args []string) {
-		client := client.NewClient()
+		client := client.NewClient(false)
 		err := client.Remove(args[0])
 		if err != nil {
 			fmt.Println("delete file error")

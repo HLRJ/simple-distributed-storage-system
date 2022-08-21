@@ -3,50 +3,58 @@ package utils
 import (
 	"context"
 	"errors"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/protos"
-	"time"
 )
 
-func ConnectToDataNode(addr string) (protos.DataNodeClient, *grpc.ClientConn, error) {
+func ConnectToTargetDataNode(addr string) (protos.DataNodeClient, *grpc.ClientConn, error) {
 	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Warn(err)
 		return nil, nil, err
 	}
 	return protos.NewDataNodeClient(conn), conn, nil
 }
 
+func ConnectToTargetNameNode(addr string, readonly bool) (protos.NameNodeClient, *grpc.ClientConn, error) {
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, nil, err
+	}
+	namenode := protos.NewNameNodeClient(conn)
+	reply, err := namenode.IsLeader(context.Background(), &protos.IsLeaderRequest{})
+	if err != nil {
+		// unreachable
+		return nil, nil, err
+	} else {
+		if !reply.Res && !readonly {
+			// must connect to leader
+			return nil, nil, errors.New(fmt.Sprintf("namenode server %v is not leader", addr))
+		}
+	}
+	return namenode, conn, nil
+}
+
 func ConnectToNameNode(readonly bool) (protos.NameNodeClient, *grpc.ClientConn, error) {
-	retries := 0
+	rounds := 0
 	for {
-		retries++
-		if retries >= 10 {
+		rounds++
+		if rounds >= 8 {
 			break
 		}
 
 		for _, addr := range consts.NameNodeServerAddrs {
-			conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			namenode, conn, err := ConnectToTargetNameNode(addr, readonly)
 			if err != nil {
 				log.Warn(err)
-				time.Sleep(500 * time.Millisecond)
 				continue
 			}
-			nameNode := protos.NewNameNodeClient(conn)
-			if !readonly {
-				// must connect to leader
-				_, err = nameNode.IsLeader(context.Background(), &protos.IsLeaderRequest{})
-				if err != nil {
-					log.Warn(err)
-					time.Sleep(500 * time.Millisecond)
-					continue
-				}
-			}
+
 			log.Infof("connect to namenode server %v", addr)
-			return nameNode, conn, nil
+			return namenode, conn, nil
 		}
 	}
 

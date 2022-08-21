@@ -77,4 +77,6 @@ message RenameRequest {
 message RenameReply {}
 
 message IsLeaderRequest {}
-message IsLeaderReply {}
+message IsLeaderReply {
+  bool res = 1;
+}

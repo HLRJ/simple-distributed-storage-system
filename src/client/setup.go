@@ -5,28 +5,16 @@ import (
 	"simple-distributed-storage-system/src/utils"
 )
 
-func NewClient() *client {
+func NewClient(readonly bool) *client {
 	// connect to namenode
-	nameNode, conn, err := utils.ConnectToNameNode(false)
+	namenode, conn, err := utils.ConnectToNameNode(readonly)
 	if err != nil {
 		log.Panic(err)
 	}
 	return &client{
 		blockSize: 0,
-		nameNode:  nameNode,
-		conn:      conn,
-	}
-}
-
-func NewReadonlyClient() *client {
-	// connect to namenode
-	nameNode, conn, err := utils.ConnectToNameNode(true)
-	if err != nil {
-		log.Panic(err)
-	}
-	return &client{
-		blockSize: 0,
-		nameNode:  nameNode,
+		readonly:  readonly,
+		namenode:  namenode,
 		conn:      conn,
 	}
 }

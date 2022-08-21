@@ -225,7 +225,7 @@ func (s *nameNodeServer) dataMigration(loc int) bool {
 			log.Infof("uuid %v -> copy from %v to %v", id, fromAddr, toAddr)
 
 			// connect to datanode server and read data
-			datanode, conn, err := utils.ConnectToDataNode(fromAddr)
+			datanode, conn, err := utils.ConnectToTargetDataNode(fromAddr)
 			if err != nil {
 				log.Warn(err)
 				log.Warnf("unable to migrate data for %v", id)
@@ -250,7 +250,7 @@ func (s *nameNodeServer) dataMigration(loc int) bool {
 			conn.Close()
 
 			// connect to datanode server and write data
-			datanode, conn, err = utils.ConnectToDataNode(toAddr)
+			datanode, conn, err = utils.ConnectToTargetDataNode(toAddr)
 			if err != nil {
 				log.Warn(err)
 				log.Warnf("unable to migrate data for %v", id)
@@ -295,7 +295,7 @@ func (s *nameNodeServer) heartbeatTicker(ctx context.Context) {
 			for _, loc := range locs {
 				addr, ok := s.sm.DataNodeLocToAddr[loc]
 				if ok {
-					datanode, conn, err := utils.ConnectToDataNode(addr)
+					datanode, conn, err := utils.ConnectToTargetDataNode(addr)
 					if err != nil {
 						// delete unreachable datanode server
 						log.Warn(err)

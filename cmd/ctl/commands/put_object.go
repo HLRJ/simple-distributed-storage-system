@@ -13,7 +13,7 @@ var putObjectCmd = &cobra.Command{
 	Short: "Put object to remote SDSS cluster",
 	Long:  `将本地文件上传分布式文件存储系统`,
 	Run: func(cmd *cobra.Command, args []string) {
-		client := client.NewClient()
+		client := client.NewClient(false)
 		err := client.Put(args[0], args[1])
 		if err != nil {
 			fmt.Println("put file error")

@@ -43,16 +43,20 @@ func (s *dataNodeServer) Setup(ctx context.Context) {
 
 	// connect to namenode
 retry:
-	nameNode, conn, err := utils.ConnectToNameNode(false)
+	retries := 0
+	namenode, conn, err := utils.ConnectToNameNode(false)
 	if err != nil {
 		log.Panic(err)
 	}
-	reply, err := nameNode.RegisterDataNode(context.Background(), &protos.RegisterDataNodeRequest{Address: s.addr})
+	reply, err := namenode.RegisterDataNode(context.Background(), &protos.RegisterDataNodeRequest{Address: s.addr})
 	if err != nil {
-		// TODO: max retries
 		conn.Close()
 		log.Warn(err)
 		time.Sleep(time.Second)
+		retries++
+		if retries >= 8 {
+			log.Panicf("datanode server %v cannot register in namenode server", s.addr)
+		}
 		goto retry
 	}
 

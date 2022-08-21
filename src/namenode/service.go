@@ -315,8 +315,5 @@ func (s *nameNodeServer) Rename(ctx context.Context, in *protos.RenameRequest) (
 }
 
 func (s *nameNodeServer) IsLeader(ctx context.Context, in *protos.IsLeaderRequest) (*protos.IsLeaderReply, error) {
-	if !s.isLeader() {
-		return nil, errors.New(fmt.Sprintf("namenode server %v is not leader", s.addr))
-	}
-	return &protos.IsLeaderReply{}, nil
+	return &protos.IsLeaderReply{Res: s.isLeader()}, nil
 }

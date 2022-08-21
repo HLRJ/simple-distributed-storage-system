@@ -50,7 +50,7 @@ var _ = Describe("API TESTS", func() {
 		localPath := "../README.md"
 		remotePath := "/README.md"
 
-		c := client.NewClient()
+		c := client.NewClient(false)
 		err := c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
 		c.CloseClient()
@@ -75,7 +75,7 @@ var _ = Describe("API TESTS", func() {
 		remotePath := "/README.md"
 		localCopyPath := "/tmp/README.md"
 
-		c := client.NewClient()
+		c := client.NewClient(false)
 		data, err := ioutil.ReadFile(localPath)
 		Expect(err).To(BeNil())
 		err = c.Put(localPath, remotePath)
@@ -107,7 +107,7 @@ var _ = Describe("API TESTS", func() {
 		remotePath := "/README.md"
 		localCopyPath := "/tmp/README.md"
 
-		c := client.NewClient()
+		c := client.NewClient(false)
 		err := c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
 		err = c.Remove(remotePath)
@@ -135,7 +135,7 @@ var _ = Describe("API TESTS", func() {
 
 		localPath := "../README.md"
 		remotePath := "/README.md"
-		c := client.NewClient()
+		c := client.NewClient(false)
 		err := c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
 		fileInfo, err := c.Stat(remotePath)
@@ -166,7 +166,7 @@ var _ = Describe("API TESTS", func() {
 
 		time.Sleep(5 * time.Second)
 		remotePath := "/doc/"
-		c := client.NewClient()
+		c := client.NewClient(false)
 		err := c.Mkdir(remotePath)
 		Expect(err).To(BeNil())
 		files, err := c.List(remotePath)
@@ -197,7 +197,7 @@ var _ = Describe("API TESTS", func() {
 		newNamePath := "/foo.md"
 		localCopyPath := "/tmp/foo.md"
 
-		c := client.NewClient()
+		c := client.NewClient(false)
 		data, err := ioutil.ReadFile(localPath)
 		Expect(err).To(BeNil())
 		err = c.Put(localPath, remotePath)
@@ -230,7 +230,7 @@ var _ = Describe("API TESTS", func() {
 		localPath := "/tmp/README.md"
 		remotePath := "/doc/README.md"
 		remoteDirectory := "/doc/"
-		c := client.NewClient()
+		c := client.NewClient(false)
 		err := c.Mkdir(remoteDirectory)
 		Expect(err).To(BeNil())
 		err = c.Put(localPath, remotePath)

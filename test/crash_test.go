@@ -52,7 +52,7 @@ var _ = Describe("CRASH TESTS", func() {
 		remotePath := "/README.md"
 		localCopyPath := "/tmp/README.md"
 
-		c := client.NewClient()
+		c := client.NewClient(false)
 		data, err := ioutil.ReadFile(localPath)
 		Expect(err).To(BeNil())
 		err = c.Put(localPath, remotePath)
@@ -88,7 +88,7 @@ var _ = Describe("CRASH TESTS", func() {
 		remotePath := "/README.md"
 		localCopyPath := "/tmp/README.md"
 
-		c := client.NewClient()
+		c := client.NewClient(false)
 		data, err := ioutil.ReadFile(localPath)
 		Expect(err).To(BeNil())
 		err = c.Put(localPath, remotePath)
@@ -108,7 +108,7 @@ var _ = Describe("CRASH TESTS", func() {
 		cancelFunc()
 	})
 
-	FIt("Crash one namenode server", func() {
+	It("Crash one namenode server", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		ctxTarget, cancelFuncTarget := context.WithCancel(context.Background())
 
@@ -126,7 +126,7 @@ var _ = Describe("CRASH TESTS", func() {
 		remotePath := "/README.md"
 		localCopyPath := "/tmp/README.md"
 
-		c := client.NewClient()
+		c := client.NewClient(false)
 		data, err := ioutil.ReadFile(localPath)
 		Expect(err).To(BeNil())
 		err = c.Put(localPath, remotePath)
@@ -137,7 +137,6 @@ var _ = Describe("CRASH TESTS", func() {
 		cancelFuncTarget()
 		time.Sleep(5 * time.Second) // for new leader
 
-		c = client.NewClient() // new client
 		err = c.Get(remotePath, localCopyPath)
 		Expect(err).To(BeNil())
 		dataCopy, err := ioutil.ReadFile(localCopyPath)
