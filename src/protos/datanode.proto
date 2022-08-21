@@ -30,4 +30,6 @@ message RemoveRequest {
 message RemoveReply {}
 
 message HeartBeatRequest {}
-message HeartBeatReply {}
+message HeartBeatReply {
+    uint64 blockNumber = 1;
+}
