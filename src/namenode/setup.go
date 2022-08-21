@@ -125,7 +125,7 @@ func (s *nameNodeServer) setupCluster() {
 		CompactionOverhead: 5,
 	}
 
-	datadir := filepath.Join(consts.RaftPersistenceDataDir, fmt.Sprintf("node%v", s.replicaID))
+	datadir := filepath.Join(consts.RaftPersistenceDataDir, fmt.Sprintf("namenode%v", s.replicaID))
 	// config for the nodehost
 	// See GoDoc for all available options
 	// by default, insecure transport is used, you can choose to use Mutual TLS

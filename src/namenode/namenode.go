@@ -18,7 +18,7 @@ const (
 	heartbeatDuration = 5
 	syncReadDuration  = 3
 
-	blockSize uint64 = 64
+	blockSize uint64 = 512
 )
 
 type fileInfo struct {

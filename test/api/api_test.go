@@ -34,6 +34,13 @@ var _ = Describe("API TESTS", func() {
 		time.Sleep(5 * time.Second)
 	})
 
+	localPath := "../../LICENSE"
+	remotePath := "/LICENSE"
+	localCopyPath := "/tmp/LICENSE"
+	remoteDir := "/doc/"
+	remoteNewPath := "/LICENSE_NEW"
+	remotePathWithDir := "/doc/LICENSE"
+
 	It("Put", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 
@@ -46,9 +53,6 @@ var _ = Describe("API TESTS", func() {
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
 		time.Sleep(5 * time.Second)
-
-		localPath := "../README.md"
-		remotePath := "/README.md"
 
 		c := client.NewClient(false)
 		err := c.Put(localPath, remotePath)
@@ -70,10 +74,6 @@ var _ = Describe("API TESTS", func() {
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
 		time.Sleep(5 * time.Second)
-
-		localPath := "../README.md"
-		remotePath := "/README.md"
-		localCopyPath := "/tmp/README.md"
 
 		c := client.NewClient(false)
 		data, err := ioutil.ReadFile(localPath)
@@ -103,10 +103,6 @@ var _ = Describe("API TESTS", func() {
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
 		time.Sleep(5 * time.Second)
 
-		localPath := "../README.md"
-		remotePath := "/README.md"
-		localCopyPath := "/tmp/README.md"
-
 		c := client.NewClient(false)
 		err := c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
@@ -133,8 +129,6 @@ var _ = Describe("API TESTS", func() {
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
 		time.Sleep(5 * time.Second)
 
-		localPath := "../README.md"
-		remotePath := "/README.md"
 		c := client.NewClient(false)
 		err := c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
@@ -165,16 +159,16 @@ var _ = Describe("API TESTS", func() {
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
 
 		time.Sleep(5 * time.Second)
-		remotePath := "/doc/"
+
 		c := client.NewClient(false)
-		err := c.Mkdir(remotePath)
+		err := c.Mkdir(remoteDir)
 		Expect(err).To(BeNil())
-		files, err := c.List(remotePath)
+		files, err := c.List(remoteDir)
 		Expect(err).To(BeNil())
 		// the length of new directory is 1，and size is 0
 		Expect(len(files)).To(Equal(1))
 		Expect(files[0].Size).To(Equal(uint64(0)))
-		Expect(files[0].Name).To(Equal(remotePath))
+		Expect(files[0].Name).To(Equal(remoteDir))
 
 		cancelFunc()
 	})
@@ -192,19 +186,14 @@ var _ = Describe("API TESTS", func() {
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
 		time.Sleep(5 * time.Second)
 
-		localPath := "../README.md"
-		remotePath := "/README.md"
-		newNamePath := "/foo.md"
-		localCopyPath := "/tmp/foo.md"
-
 		c := client.NewClient(false)
 		data, err := ioutil.ReadFile(localPath)
 		Expect(err).To(BeNil())
 		err = c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
-		err = c.Rename(remotePath, newNamePath)
+		err = c.Rename(remotePath, remoteNewPath)
 		Expect(err).To(BeNil())
-		err = c.Get(newNamePath, localCopyPath)
+		err = c.Get(remoteNewPath, localCopyPath)
 		Expect(err).To(BeNil())
 		dataCopy, err := ioutil.ReadFile(localCopyPath)
 		Expect(err).To(BeNil())
@@ -227,26 +216,23 @@ var _ = Describe("API TESTS", func() {
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
 		time.Sleep(5 * time.Second)
 
-		localPath := "/tmp/README.md"
-		remotePath := "/doc/README.md"
-		remoteDirectory := "/doc/"
 		c := client.NewClient(false)
-		err := c.Mkdir(remoteDirectory)
+		err := c.Mkdir(remoteDir)
 		Expect(err).To(BeNil())
-		err = c.Put(localPath, remotePath)
+		err = c.Put(localPath, remotePathWithDir)
 		Expect(err).To(BeNil())
-		files, err := c.List(remoteDirectory)
+		fileInfos, err := c.List(remoteDir)
 		Expect(err).To(BeNil())
 		data, err := ioutil.ReadFile(localPath)
 		Expect(err).To(BeNil())
 		localFileSize := uint64(len(data))
 
-		Expect(len(files)).To(Equal(2))
+		Expect(len(fileInfos)).To(Equal(2))
 		// TODO: order
-		Expect(files[0].Size).To(Equal(uint64(0)))
-		Expect(files[0].Name).To(Equal(remoteDirectory))
-		Expect(files[1].Size).To(Equal(localFileSize))
-		Expect(files[1].Name).To(Equal(remotePath))
+		Expect(fileInfos[0].Size).To(Equal(uint64(0)))
+		Expect(fileInfos[0].Name).To(Equal(remoteDir))
+		Expect(fileInfos[1].Size).To(Equal(localFileSize))
+		Expect(fileInfos[1].Name).To(Equal(remotePathWithDir))
 
 		cancelFunc()
 	})
