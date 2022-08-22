@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"errors"
 	"github.com/google/uuid"
 	"github.com/lni/dragonboat/v4"
 	log "github.com/sirupsen/logrus"
+	"math/rand"
 	"simple-distributed-storage-system/src/protos"
 	"simple-distributed-storage-system/src/utils"
 	"sync"
@@ -50,6 +52,10 @@ type nameNodeServer struct {
 	sm        nameNodeState
 
 	registrationInfo registrationInfo
+}
+
+func isDir(path string) bool {
+	return path[len(path)-1] == '/'
 }
 
 func (s *nameNodeServer) syncRead(ctx context.Context) {
@@ -128,6 +134,26 @@ func (s *nameNodeServer) decodeState(state []byte) {
 	s.sm = sm
 }
 
+func randomChooseLocs(locs []int, count int) ([]int, error) {
+	if len(locs) < count {
+		return nil, errors.New("insufficient locs")
+	}
+
+	rand.Seed(time.Now().Unix())
+	rand.Shuffle(len(locs), func(i int, j int) {
+		locs[i], locs[j] = locs[j], locs[i]
+	})
+
+	result := make([]int, 0, count)
+	for index, value := range locs {
+		if index == count {
+			break
+		}
+		result = append(result, value)
+	}
+	return result, nil
+}
+
 func (s *nameNodeServer) fetchAllLocs() []int {
 	index := 0
 	locs := make([]int, len(s.sm.DataNodeLocToAddr))
@@ -136,6 +162,7 @@ func (s *nameNodeServer) fetchAllLocs() []int {
 		index++
 	}
 	if s.registrationInfo.context {
+		// the loc for the latest registered datanode
 		locs = append(locs, s.sm.DataNodeMaxLoc)
 	}
 	return locs
@@ -179,7 +206,7 @@ func (s *nameNodeServer) dataMigration(loc int) bool {
 			log.Infof("uuid %v -> fetch candidates %v", id, candidates)
 
 			// random choose one
-			res, err := utils.RandomChooseLocs(candidates, 1)
+			res, err := randomChooseLocs(candidates, 1)
 			if err != nil {
 				log.Warn(err)
 				log.Warnf("unable to migrate data for %v", id)
@@ -305,6 +332,7 @@ func (s *nameNodeServer) heartbeatTicker(ctx context.Context) {
 						continue
 					}
 
+					// TODO: block number
 					_, err = datanode.HeartBeat(context.Background(), &protos.HeartBeatRequest{})
 					if err != nil {
 						// delete unreachable datanode server

@@ -5,31 +5,31 @@ package protos;
 option go_package = "../protos";
 
 service DataNode {
-    rpc Read(ReadRequest) returns (ReadReply);
-    rpc Write(WriteRequest) returns (WriteReply);
-    rpc Remove(RemoveRequest) returns (RemoveReply);
-    rpc HeartBeat(HeartBeatRequest) returns (HeartBeatReply);
+  rpc Read(ReadRequest) returns (ReadReply);
+  rpc Write(WriteRequest) returns (WriteReply);
+  rpc Remove(RemoveRequest) returns (RemoveReply);
+  rpc HeartBeat(HeartBeatRequest) returns (HeartBeatReply);
 }
 
 message ReadRequest {
-    bytes uuid = 1;
+  bytes uuid = 1;
 }
 message ReadReply {
-    bytes data = 1;
+  bytes data = 1;
 }
 
 message WriteRequest {
-    bytes uuid = 1;
-    bytes data = 2;
+  bytes uuid = 1;
+  bytes data = 2;
 }
 message WriteReply {}
 
 message RemoveRequest {
-    bytes uuid = 1;
+  bytes uuid = 1;
 }
 message RemoveReply {}
 
 message HeartBeatRequest {}
 message HeartBeatReply {
-    uint64 blockNumber = 1;
+  uint64 blockNumber = 1;
 }

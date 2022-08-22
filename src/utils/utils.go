@@ -1,10 +1,7 @@
 package utils
 
 import (
-	"errors"
 	"math"
-	"math/rand"
-	"time"
 )
 
 func CeilDiv(a, b uint64) int {
@@ -17,28 +14,4 @@ func Min(a, b uint64) int {
 	} else {
 		return int(b)
 	}
-}
-
-func RandomChooseLocs(locs []int, count int) ([]int, error) {
-	if len(locs) < count {
-		return nil, errors.New("insufficient locs")
-	}
-
-	rand.Seed(time.Now().Unix())
-	rand.Shuffle(len(locs), func(i int, j int) {
-		locs[i], locs[j] = locs[j], locs[i]
-	})
-
-	result := make([]int, 0, count)
-	for index, value := range locs {
-		if index == count {
-			break
-		}
-		result = append(result, value)
-	}
-	return result, nil
-}
-
-func IsDir(path string) bool {
-	return path[len(path)-1] == '/'
 }
