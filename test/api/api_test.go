@@ -42,6 +42,7 @@ var _ = Describe("API TESTS", func() {
 
 	It("Put", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
 
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
@@ -55,15 +56,15 @@ var _ = Describe("API TESTS", func() {
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
+		defer c.CloseClient()
+
 		err := c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
-		c.CloseClient()
-
-		cancelFunc()
 	})
 
 	It("Get", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
 
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
@@ -77,22 +78,25 @@ var _ = Describe("API TESTS", func() {
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
+		defer c.CloseClient()
+
 		data, err := os.ReadFile(localPath)
 		Expect(err).To(BeNil())
+
 		err = c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
+
 		err = c.Get(remotePath, localCopyPath)
 		Expect(err).To(BeNil())
+
 		dataCopy, err := os.ReadFile(localCopyPath)
 		Expect(err).To(BeNil())
 		Expect(bytes.Equal(dataCopy, data)).To(BeTrue())
-		c.CloseClient()
-
-		cancelFunc()
 	})
 
 	It("Remove", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
 
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
@@ -106,20 +110,22 @@ var _ = Describe("API TESTS", func() {
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
+		defer c.CloseClient()
+
 		err := c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
+
 		err = c.Remove(remotePath)
 		Expect(err).To(BeNil())
+
 		err = c.Get(remotePath, localCopyPath)
 		// should be error
 		Expect(err).ToNot(BeNil())
-		c.CloseClient()
-
-		cancelFunc()
 	})
 
 	It("Stat", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
 
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
@@ -133,24 +139,26 @@ var _ = Describe("API TESTS", func() {
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
+		defer c.CloseClient()
+
 		err := c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
+
 		fileInfo, err := c.Stat(remotePath)
 		Expect(err).To(BeNil())
+
 		// calculate the size of local file
 		data, err := os.ReadFile(localPath)
 		Expect(err).To(BeNil())
-		localFileSize := uint64(len(data))
+
 		// compare file name and size
 		Expect(fileInfo.Name).To(Equal(remotePath))
-		Expect(fileInfo.Size).To(Equal(localFileSize))
-		c.CloseClient()
-
-		cancelFunc()
+		Expect(fileInfo.Size).To(Equal(uint64(len(data))))
 	})
 
 	It("Mkdir", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
 
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
@@ -164,20 +172,23 @@ var _ = Describe("API TESTS", func() {
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
+		defer c.CloseClient()
+
 		err := c.Mkdir(remoteDir)
 		Expect(err).To(BeNil())
+
 		files, err := c.List(remoteDir)
 		Expect(err).To(BeNil())
+
 		// the length of new directory is 1，and size is 0
 		Expect(len(files)).To(Equal(1))
 		Expect(files[0].Size).To(Equal(uint64(0)))
 		Expect(files[0].Name).To(Equal(remoteDir))
-
-		cancelFunc()
 	})
 
 	It("Rename", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
 
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
@@ -191,24 +202,28 @@ var _ = Describe("API TESTS", func() {
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
+		defer c.CloseClient()
+
 		data, err := os.ReadFile(localPath)
 		Expect(err).To(BeNil())
+
 		err = c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
+
 		err = c.Rename(remotePath, remoteNewPath)
 		Expect(err).To(BeNil())
+
 		err = c.Get(remoteNewPath, localCopyPath)
 		Expect(err).To(BeNil())
+
 		dataCopy, err := os.ReadFile(localCopyPath)
 		Expect(err).To(BeNil())
 		Expect(bytes.Equal(dataCopy, data)).To(BeTrue())
-		c.CloseClient()
-
-		cancelFunc()
 	})
 
 	It("List", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
 
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
@@ -222,23 +237,25 @@ var _ = Describe("API TESTS", func() {
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
+		defer c.CloseClient()
+
 		err := c.Mkdir(remoteDir)
 		Expect(err).To(BeNil())
+
 		err = c.Put(localPath, remotePathWithDir)
 		Expect(err).To(BeNil())
+
 		fileInfos, err := c.List(remoteDir)
 		Expect(err).To(BeNil())
+
 		data, err := os.ReadFile(localPath)
 		Expect(err).To(BeNil())
-		localFileSize := uint64(len(data))
 
 		Expect(len(fileInfos)).To(Equal(2))
 		// TODO: order
 		Expect(fileInfos[0].Size).To(Equal(uint64(0)))
 		Expect(fileInfos[0].Name).To(Equal(remoteDir))
-		Expect(fileInfos[1].Size).To(Equal(localFileSize))
+		Expect(fileInfos[1].Size).To(Equal(uint64(len(data))))
 		Expect(fileInfos[1].Name).To(Equal(remotePathWithDir))
-
-		cancelFunc()
 	})
 })
