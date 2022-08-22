@@ -7,14 +7,12 @@ import (
 	"github.com/lni/dragonboat/v4"
 	"github.com/lni/dragonboat/v4/config"
 	"github.com/lni/dragonboat/v4/logger"
-	zipkingrpc "github.com/openzipkin/zipkin-go/middleware/grpc"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"net"
 	"path/filepath"
 	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/protos"
-	"simple-distributed-storage-system/src/utils"
 )
 
 const (
@@ -43,20 +41,14 @@ func NewNameNodeServer(addr string, replicaID uint64) *nameNodeServer {
 func (s *nameNodeServer) Setup(ctx context.Context) {
 	// setup cluster
 	s.setupCluster()
-	//zipkin
-	tracer, r, err := utils.NewZipkinTracer(utils.ZIPKIN_HTTP_ENDPOINT, fmt.Sprintf("%sNameNode", s.addr), s.addr)
-	defer r.Close()
-	if err != nil {
-		log.Println(err)
-		return
-	}
+
 	// setup namenode server
 	log.Infof("starting namenode server at %v", s.addr)
 	listener, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		log.Panic(err)
 	}
-	server := grpc.NewServer(grpc.StatsHandler(zipkingrpc.NewServerHandler(tracer)))
+	server := grpc.NewServer()
 	protos.RegisterNameNodeServer(server, s)
 
 	go func() {
