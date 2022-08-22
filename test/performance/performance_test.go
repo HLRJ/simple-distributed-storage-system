@@ -79,7 +79,7 @@ var _ = Describe("PERFORMANCE TESTS", func() {
 				err = c.Get(remotePathWithDir, localCopyPath)
 				Expect(err).To(BeNil())
 			})
-		}, gmeasure.SamplingConfig{N: 20, Duration: time.Minute})
+		}, gmeasure.SamplingConfig{N: 100, Duration: time.Minute})
 		// we'll sample the function up to 20 times or up to a minute, whichever comes first
 
 		experiment.Sample(func(idx int) {
@@ -87,21 +87,21 @@ var _ = Describe("PERFORMANCE TESTS", func() {
 				_, err := c.Stat(remotePathWithDir)
 				Expect(err).To(BeNil())
 			})
-		}, gmeasure.SamplingConfig{N: 20, Duration: time.Minute})
+		}, gmeasure.SamplingConfig{N: 100, Duration: time.Minute})
 
 		experiment.Sample(func(idx int) {
 			experiment.MeasureDuration("List", func() {
 				_, err := c.List(remoteDir)
 				Expect(err).To(BeNil())
 			})
-		}, gmeasure.SamplingConfig{N: 20, Duration: time.Minute})
+		}, gmeasure.SamplingConfig{N: 100, Duration: time.Minute})
 
 		experiment.Sample(func(idx int) {
-			suffix := randomString(16)
+			suffix := randomString(32)
 
 			tempFile, err := os.CreateTemp("", suffix)
 			Expect(err).To(BeNil())
-			_, err = tempFile.WriteString(randomString(256))
+			_, err = tempFile.WriteString(randomString(4096))
 			Expect(err).To(BeNil())
 			tempFile.Close()
 
@@ -110,13 +110,13 @@ var _ = Describe("PERFORMANCE TESTS", func() {
 				Expect(err).To(BeNil())
 			})
 
-			newSuffix := randomString(16)
+			newSuffix := randomString(32)
 
 			experiment.MeasureDuration("Rename", func() {
 				err := c.Rename(remoteDir+suffix, remoteDir+newSuffix)
 				Expect(err).To(BeNil())
 			})
-		}, gmeasure.SamplingConfig{N: 20, Duration: time.Minute})
+		}, gmeasure.SamplingConfig{N: 100, Duration: time.Minute})
 
 		c.CloseClient()
 		cancelFunc()

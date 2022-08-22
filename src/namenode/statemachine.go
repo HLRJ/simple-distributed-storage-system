@@ -7,7 +7,6 @@ import (
 	sm "github.com/lni/dragonboat/v4/statemachine"
 	log "github.com/sirupsen/logrus"
 	"io"
-	"io/ioutil"
 )
 
 type StateMachine struct {
@@ -54,7 +53,7 @@ func (s *StateMachine) SaveSnapshot(writer io.Writer, collection sm.ISnapshotFil
 }
 
 func (s *StateMachine) RecoverFromSnapshot(reader io.Reader, files []sm.SnapshotFile, i <-chan struct{}) error {
-	data, err := ioutil.ReadAll(reader)
+	data, err := io.ReadAll(reader)
 	if err != nil {
 		log.Panic(err)
 	}

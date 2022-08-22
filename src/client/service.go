@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	log "github.com/sirupsen/logrus"
-	"io/ioutil"
 	"os"
 	"simple-distributed-storage-system/src/protos"
 	"simple-distributed-storage-system/src/utils"
@@ -78,7 +77,7 @@ func (c *client) Put(localPath, remotePath string) error {
 	c.testConnection()
 
 	// read file
-	data, err := ioutil.ReadFile(localPath)
+	data, err := os.ReadFile(localPath)
 	if err != nil {
 		return err
 	}

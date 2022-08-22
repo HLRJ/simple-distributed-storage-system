@@ -13,6 +13,7 @@ import (
 	"time"
 )
 
+// TODO: intro configuration file
 const (
 	replicaFactor     = 3
 	heartbeatDuration = 5

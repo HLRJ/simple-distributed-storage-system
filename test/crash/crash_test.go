@@ -6,7 +6,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
-	"io/ioutil"
 	"os"
 	"simple-distributed-storage-system/src/client"
 	"simple-distributed-storage-system/src/consts"
@@ -53,7 +52,7 @@ var _ = Describe("CRASH TESTS", func() {
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
-		data, err := ioutil.ReadFile(localPath)
+		data, err := os.ReadFile(localPath)
 		Expect(err).To(BeNil())
 		err = c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
@@ -63,7 +62,7 @@ var _ = Describe("CRASH TESTS", func() {
 
 		err = c.Get(remotePath, localCopyPath)
 		Expect(err).To(BeNil())
-		dataCopy, err := ioutil.ReadFile(localCopyPath)
+		dataCopy, err := os.ReadFile(localCopyPath)
 		Expect(err).To(BeNil())
 		Expect(bytes.Equal(dataCopy, data)).To(BeTrue())
 
@@ -85,7 +84,7 @@ var _ = Describe("CRASH TESTS", func() {
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
-		data, err := ioutil.ReadFile(localPath)
+		data, err := os.ReadFile(localPath)
 		Expect(err).To(BeNil())
 		err = c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
@@ -96,7 +95,7 @@ var _ = Describe("CRASH TESTS", func() {
 
 		err = c.Get(remotePath, localCopyPath)
 		Expect(err).To(BeNil())
-		dataCopy, err := ioutil.ReadFile(localCopyPath)
+		dataCopy, err := os.ReadFile(localCopyPath)
 		Expect(err).To(BeNil())
 		Expect(bytes.Equal(dataCopy, data)).To(BeTrue())
 
@@ -119,7 +118,7 @@ var _ = Describe("CRASH TESTS", func() {
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
-		data, err := ioutil.ReadFile(localPath)
+		data, err := os.ReadFile(localPath)
 		Expect(err).To(BeNil())
 		err = c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
@@ -131,7 +130,7 @@ var _ = Describe("CRASH TESTS", func() {
 
 		err = c.Get(remotePath, localCopyPath)
 		Expect(err).To(BeNil())
-		dataCopy, err := ioutil.ReadFile(localCopyPath)
+		dataCopy, err := os.ReadFile(localCopyPath)
 		Expect(err).To(BeNil())
 		Expect(bytes.Equal(dataCopy, data)).To(BeTrue())
 
