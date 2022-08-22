@@ -39,16 +39,18 @@ var _ = Describe("CRASH TESTS", func() {
 
 	It("Crash one datanode server", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		ctxTarget, cancelFuncTarget := context.WithCancel(context.Background())
+
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(ctx)
-		time.Sleep(5 * time.Second)
 
-		ctxTarget, cancelFuncTarget := context.WithCancel(context.Background())
 		go datanode.NewDataNodeServer("localhost:9000").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9003").Setup(ctxTarget)
+
+		// wait for setup
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
@@ -72,15 +74,17 @@ var _ = Describe("CRASH TESTS", func() {
 
 	It("Crash one datanode server and reconnect", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		ctxTarget, cancelFuncTarget := context.WithCancel(context.Background())
+
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(ctx)
-		time.Sleep(5 * time.Second)
 
-		ctxTarget, cancelFuncTarget := context.WithCancel(context.Background())
 		go datanode.NewDataNodeServer("localhost:9000").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctxTarget)
+
+		// wait for setup
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
@@ -110,11 +114,12 @@ var _ = Describe("CRASH TESTS", func() {
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctxTarget)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(ctx)
-		time.Sleep(5 * time.Second)
 
 		go datanode.NewDataNodeServer("localhost:9000").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
+
+		// wait for setup
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
@@ -126,7 +131,6 @@ var _ = Describe("CRASH TESTS", func() {
 
 		time.Sleep(5 * time.Second) // for sync read
 		cancelFuncTarget()
-		time.Sleep(5 * time.Second) // for new leader
 
 		err = c.Get(remotePath, localCopyPath)
 		Expect(err).To(BeNil())

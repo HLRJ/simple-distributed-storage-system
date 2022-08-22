@@ -16,7 +16,6 @@ type StateMachine struct {
 }
 
 func (s *StateMachine) Update(entry sm.Entry) (sm.Result, error) {
-	log.Infof("replica %v update state machine with %v", s.ReplicaID, entry.Cmd)
 	r := bytes.NewBuffer(entry.Cmd)
 	decoder := gob.NewDecoder(r)
 	var state nameNodeState
@@ -25,7 +24,7 @@ func (s *StateMachine) Update(entry sm.Entry) (sm.Result, error) {
 		log.Panic(err)
 	}
 	s.State = state
-	log.Infof("replica %v now state %v after update", s.ReplicaID, s.State)
+	log.Infof("replica %v update state machine %v", s.ReplicaID, s.State)
 	return sm.Result{Value: uint64(len(entry.Cmd))}, nil
 }
 
@@ -37,7 +36,6 @@ func (s *StateMachine) Lookup(i interface{}) (interface{}, error) {
 	if err != nil {
 		log.Panic(err)
 	}
-	log.Infof("replica %v lookup state machine return %v", s.ReplicaID, w.Bytes())
 	return w.Bytes(), nil
 }
 

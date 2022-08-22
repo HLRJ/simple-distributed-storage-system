@@ -16,8 +16,8 @@ import (
 // TODO: intro configuration file
 const (
 	replicaFactor     = 3
-	heartbeatDuration = 5
-	syncReadDuration  = 3
+	heartbeatDuration = 2
+	syncReadDuration  = 2
 
 	blockSize uint64 = 512
 )
@@ -112,12 +112,12 @@ func (s *nameNodeServer) encodeState() []byte {
 	if err != nil {
 		log.Panic(err)
 	}
-	log.Infof("namenode server %v encoded state %v", s.addr, w.Bytes())
+	log.Infof("namenode server %v encoded state", s.addr)
 	return w.Bytes()
 }
 
 func (s *nameNodeServer) decodeState(state []byte) {
-	log.Infof("namenode server %v decode state %v", s.addr, state)
+	log.Infof("namenode server %v decode state", s.addr)
 	r := bytes.NewBuffer(state)
 	decoder := gob.NewDecoder(r)
 	var sm nameNodeState

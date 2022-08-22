@@ -46,11 +46,12 @@ var _ = Describe("API TESTS", func() {
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(ctx)
-		time.Sleep(5 * time.Second)
 
 		go datanode.NewDataNodeServer("localhost:9000").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
+
+		// wait for setup
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
@@ -67,11 +68,12 @@ var _ = Describe("API TESTS", func() {
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(ctx)
-		time.Sleep(5 * time.Second)
 
 		go datanode.NewDataNodeServer("localhost:9000").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
+
+		// wait for setup
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
@@ -95,11 +97,12 @@ var _ = Describe("API TESTS", func() {
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(ctx)
-		time.Sleep(5 * time.Second)
 
 		go datanode.NewDataNodeServer("localhost:9000").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
+
+		// wait for setup
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
@@ -121,11 +124,12 @@ var _ = Describe("API TESTS", func() {
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(ctx)
-		time.Sleep(5 * time.Second)
 
 		go datanode.NewDataNodeServer("localhost:9000").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
+
+		// wait for setup
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
@@ -151,12 +155,12 @@ var _ = Describe("API TESTS", func() {
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(ctx)
-		time.Sleep(5 * time.Second)
 
 		go datanode.NewDataNodeServer("localhost:9000").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
 
+		// wait for setup
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
@@ -178,11 +182,12 @@ var _ = Describe("API TESTS", func() {
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(ctx)
-		time.Sleep(5 * time.Second)
 
 		go datanode.NewDataNodeServer("localhost:9000").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
+
+		// wait for setup
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
@@ -208,11 +213,12 @@ var _ = Describe("API TESTS", func() {
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(ctx)
-		time.Sleep(5 * time.Second)
 
 		go datanode.NewDataNodeServer("localhost:9000").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
+
+		// wait for setup
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)

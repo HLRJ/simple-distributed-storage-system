@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/protos"
+	"time"
 )
 
 func ConnectToTargetDataNode(addr string) (protos.DataNodeClient, *grpc.ClientConn, error) {
@@ -50,6 +51,7 @@ func ConnectToNameNode(readonly bool) (protos.NameNodeClient, *grpc.ClientConn, 
 			namenode, conn, err := ConnectToTargetNameNode(addr, readonly)
 			if err != nil {
 				log.Warn(err)
+				time.Sleep(time.Second)
 				continue
 			}
 
