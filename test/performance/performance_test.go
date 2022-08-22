@@ -52,6 +52,7 @@ var _ = Describe("PERFORMANCE TESTS", func() {
 
 	It("Client APIs", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
 
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
@@ -68,9 +69,11 @@ var _ = Describe("PERFORMANCE TESTS", func() {
 		AddReportEntry(experiment.Name, experiment)
 
 		c := client.NewClient(false)
+		defer c.CloseClient()
 
 		err := c.Mkdir(remoteDir)
 		Expect(err).To(BeNil())
+
 		err = c.Put(localPath, remotePathWithDir)
 		Expect(err).To(BeNil())
 
@@ -118,8 +121,5 @@ var _ = Describe("PERFORMANCE TESTS", func() {
 				Expect(err).To(BeNil())
 			})
 		}, gmeasure.SamplingConfig{N: 100, Duration: time.Minute})
-
-		c.CloseClient()
-		cancelFunc()
 	})
 })

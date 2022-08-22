@@ -3,6 +3,7 @@
 all: SDSS-ctl server
 
 setup: server
+	rm -rf data
 	./bin/namenode -addr localhost:8000 -replicaid 1 &
 	./bin/namenode -addr localhost:8001 -replicaid 2 &
 	./bin/namenode -addr localhost:8002 -replicaid 3 &

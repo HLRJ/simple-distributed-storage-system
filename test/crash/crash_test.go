@@ -39,6 +39,7 @@ var _ = Describe("CRASH TESTS", func() {
 
 	It("Crash one datanode server", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
 		ctxTarget, cancelFuncTarget := context.WithCancel(context.Background())
 
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
@@ -54,8 +55,11 @@ var _ = Describe("CRASH TESTS", func() {
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
+		defer c.CloseClient()
+
 		data, err := os.ReadFile(localPath)
 		Expect(err).To(BeNil())
+
 		err = c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
 
@@ -64,16 +68,15 @@ var _ = Describe("CRASH TESTS", func() {
 
 		err = c.Get(remotePath, localCopyPath)
 		Expect(err).To(BeNil())
+
 		dataCopy, err := os.ReadFile(localCopyPath)
 		Expect(err).To(BeNil())
 		Expect(bytes.Equal(dataCopy, data)).To(BeTrue())
-
-		c.CloseClient()
-		cancelFunc()
 	})
 
 	It("Crash one datanode server and reconnect", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
 		ctxTarget, cancelFuncTarget := context.WithCancel(context.Background())
 
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
@@ -88,8 +91,11 @@ var _ = Describe("CRASH TESTS", func() {
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
+		defer c.CloseClient()
+
 		data, err := os.ReadFile(localPath)
 		Expect(err).To(BeNil())
+
 		err = c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
 
@@ -99,16 +105,15 @@ var _ = Describe("CRASH TESTS", func() {
 
 		err = c.Get(remotePath, localCopyPath)
 		Expect(err).To(BeNil())
+
 		dataCopy, err := os.ReadFile(localCopyPath)
 		Expect(err).To(BeNil())
 		Expect(bytes.Equal(dataCopy, data)).To(BeTrue())
-
-		c.CloseClient()
-		cancelFunc()
 	})
 
 	It("Crash one namenode server", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
 		ctxTarget, cancelFuncTarget := context.WithCancel(context.Background())
 
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctxTarget)
@@ -123,22 +128,22 @@ var _ = Describe("CRASH TESTS", func() {
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
+		defer c.CloseClient()
+
 		data, err := os.ReadFile(localPath)
 		Expect(err).To(BeNil())
+
 		err = c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
-		c.CloseClient()
 
 		time.Sleep(5 * time.Second) // for sync read
 		cancelFuncTarget()
 
 		err = c.Get(remotePath, localCopyPath)
 		Expect(err).To(BeNil())
+
 		dataCopy, err := os.ReadFile(localCopyPath)
 		Expect(err).To(BeNil())
 		Expect(bytes.Equal(dataCopy, data)).To(BeTrue())
-
-		c.CloseClient()
-		cancelFunc()
 	})
 })

@@ -51,7 +51,7 @@ func ConnectToNameNode(readonly bool) (protos.NameNodeClient, *grpc.ClientConn, 
 			namenode, conn, err := ConnectToTargetNameNode(addr, readonly)
 			if err != nil {
 				log.Warn(err)
-				time.Sleep(time.Second)
+				time.Sleep(500 * time.Millisecond)
 				continue
 			}
 

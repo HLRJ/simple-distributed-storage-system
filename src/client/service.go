@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"simple-distributed-storage-system/src/protos"
@@ -201,6 +202,10 @@ func (c *client) Remove(remotePath string) error {
 func (c *client) Stat(remotePath string) (*protos.FileInfo, error) {
 	c.testConnection()
 
+	if utils.IsDir(remotePath) {
+		return nil, errors.New(fmt.Sprintf("path %v is not file", remotePath))
+	}
+
 	reply, err := c.namenode.FetchFileInfo(context.Background(), &protos.FetchFileInfoRequest{Path: remotePath})
 	if err != nil {
 		return nil, err
@@ -210,6 +215,10 @@ func (c *client) Stat(remotePath string) (*protos.FileInfo, error) {
 
 func (c *client) Mkdir(remotePath string) error {
 	c.testConnection()
+
+	if !utils.IsDir(remotePath) {
+		return errors.New(fmt.Sprintf("path %v is not dir", remotePath))
+	}
 
 	err := c.create(remotePath, 0)
 	if err != nil {
@@ -230,6 +239,10 @@ func (c *client) Rename(remotePathSrc, remotePathDest string) error {
 
 func (c *client) List(remotePath string) ([]*protos.FileInfo, error) {
 	c.testConnection()
+
+	if !utils.IsDir(remotePath) {
+		return nil, errors.New(fmt.Sprintf("path %v is not dir", remotePath))
+	}
 
 	reply, err := c.namenode.FetchFileInfo(context.Background(), &protos.FetchFileInfoRequest{Path: remotePath})
 	if err != nil {
