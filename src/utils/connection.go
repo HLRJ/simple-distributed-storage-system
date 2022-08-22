@@ -14,7 +14,7 @@ import (
 
 func ConnectToTargetDataNode(addr string) (protos.DataNodeClient, *grpc.ClientConn, error) {
 	//zipkin
-	tracer, r, err := NewZipkinTracer(ZIPKIN_HTTP_ENDPOINT, "ConnectToTargetDataNode", addr)
+	tracer, r, err := NewZipkinTracer(ZIPKIN_HTTP_ENDPOINT, fmt.Sprintf("-->%sDataNode", addr), addr)
 	defer r.Close()
 	if err != nil {
 		log.Println(err)
@@ -29,7 +29,7 @@ func ConnectToTargetDataNode(addr string) (protos.DataNodeClient, *grpc.ClientCo
 
 func ConnectToTargetNameNode(addr string, readonly bool) (protos.NameNodeClient, *grpc.ClientConn, error) {
 	//zipkin
-	tracer, r, err := NewZipkinTracer(ZIPKIN_HTTP_ENDPOINT, "ConnectToTargetNameNode", addr)
+	tracer, r, err := NewZipkinTracer(ZIPKIN_HTTP_ENDPOINT, fmt.Sprintf("-->%sDataNode", addr), addr)
 	defer r.Close()
 	if err != nil {
 		log.Println(err)

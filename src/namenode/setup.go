@@ -44,7 +44,7 @@ func (s *nameNodeServer) Setup(ctx context.Context) {
 	// setup cluster
 	s.setupCluster()
 	//zipkin
-	tracer, r, err := utils.NewZipkinTracer(utils.ZIPKIN_HTTP_ENDPOINT, "nameNodeServer", s.addr)
+	tracer, r, err := utils.NewZipkinTracer(utils.ZIPKIN_HTTP_ENDPOINT, fmt.Sprintf("%sNameNode", s.addr), s.addr)
 	defer r.Close()
 	if err != nil {
 		log.Println(err)
