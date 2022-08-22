@@ -22,7 +22,7 @@ func (s *nameNodeServer) FetchBlockAddrs(ctx context.Context, in *protos.FetchBl
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("path %v not exists", in.Path))
 	}
-	if utils.IsDir(in.Path) {
+	if isDir(in.Path) {
 		return nil, errors.New(fmt.Sprintf("cannot fetch block addr for dir %v", in.Path))
 	}
 	if uint64(len(info.Ids)) <= in.Index {
@@ -144,7 +144,7 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 
 	// check dir existence
 	var parentDir string
-	if !utils.IsDir(in.Path) {
+	if !isDir(in.Path) {
 		index := strings.LastIndex(in.Path, "/")
 		// include '/'
 		parentDir = in.Path[:index+1]
@@ -173,7 +173,7 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 
 	// alloc locs for uuid
 	for _, id := range uuids {
-		locs, err := utils.RandomChooseLocs(s.fetchAllLocs(), replicaFactor)
+		locs, err := randomChooseLocs(s.fetchAllLocs(), replicaFactor)
 		if err != nil {
 			return nil, err
 		}
@@ -204,7 +204,7 @@ func (s *nameNodeServer) Open(ctx context.Context, in *protos.OpenRequest) (*pro
 		return nil, errors.New(fmt.Sprintf("path %v not exists", in.Path))
 	}
 
-	if utils.IsDir(in.Path) {
+	if isDir(in.Path) {
 		return nil, errors.New(fmt.Sprintf("cannot open dir %v", in.Path))
 	}
 
@@ -267,7 +267,7 @@ func (s *nameNodeServer) FetchFileInfo(ctx context.Context, in *protos.FetchFile
 	}
 
 	var infos []*protos.FileInfo
-	if !utils.IsDir(in.Path) { // is file
+	if !isDir(in.Path) { // is file
 		infos = append(infos, &protos.FileInfo{
 			Name: in.Path,
 			Size: info.Size,
@@ -304,7 +304,7 @@ func (s *nameNodeServer) Rename(ctx context.Context, in *protos.RenameRequest) (
 		return nil, errors.New(fmt.Sprintf("path %v not exists", in.OldPath))
 	}
 
-	if !utils.IsDir(in.OldPath) && !utils.IsDir(in.NewPath) {
+	if !isDir(in.OldPath) && !isDir(in.NewPath) {
 		delete(s.sm.FileToInfo, in.OldPath)
 		s.sm.FileToInfo[in.NewPath] = info
 	} else {

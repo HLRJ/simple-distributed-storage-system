@@ -6,7 +6,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
-	"io/ioutil"
 	"os"
 	"simple-distributed-storage-system/src/client"
 	"simple-distributed-storage-system/src/consts"
@@ -40,20 +39,22 @@ var _ = Describe("CRASH TESTS", func() {
 
 	It("Crash one datanode server", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		ctxTarget, cancelFuncTarget := context.WithCancel(context.Background())
+
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(ctx)
-		time.Sleep(5 * time.Second)
 
-		ctxTarget, cancelFuncTarget := context.WithCancel(context.Background())
 		go datanode.NewDataNodeServer("localhost:9000").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9003").Setup(ctxTarget)
+
+		// wait for setup
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
-		data, err := ioutil.ReadFile(localPath)
+		data, err := os.ReadFile(localPath)
 		Expect(err).To(BeNil())
 		err = c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
@@ -63,7 +64,7 @@ var _ = Describe("CRASH TESTS", func() {
 
 		err = c.Get(remotePath, localCopyPath)
 		Expect(err).To(BeNil())
-		dataCopy, err := ioutil.ReadFile(localCopyPath)
+		dataCopy, err := os.ReadFile(localCopyPath)
 		Expect(err).To(BeNil())
 		Expect(bytes.Equal(dataCopy, data)).To(BeTrue())
 
@@ -73,19 +74,21 @@ var _ = Describe("CRASH TESTS", func() {
 
 	It("Crash one datanode server and reconnect", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
+		ctxTarget, cancelFuncTarget := context.WithCancel(context.Background())
+
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(ctx)
-		time.Sleep(5 * time.Second)
 
-		ctxTarget, cancelFuncTarget := context.WithCancel(context.Background())
 		go datanode.NewDataNodeServer("localhost:9000").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctxTarget)
+
+		// wait for setup
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
-		data, err := ioutil.ReadFile(localPath)
+		data, err := os.ReadFile(localPath)
 		Expect(err).To(BeNil())
 		err = c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
@@ -96,7 +99,7 @@ var _ = Describe("CRASH TESTS", func() {
 
 		err = c.Get(remotePath, localCopyPath)
 		Expect(err).To(BeNil())
-		dataCopy, err := ioutil.ReadFile(localCopyPath)
+		dataCopy, err := os.ReadFile(localCopyPath)
 		Expect(err).To(BeNil())
 		Expect(bytes.Equal(dataCopy, data)).To(BeTrue())
 
@@ -111,15 +114,16 @@ var _ = Describe("CRASH TESTS", func() {
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[0], 1).Setup(ctxTarget)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[1], 2).Setup(ctx)
 		go namenode.NewNameNodeServer(consts.NameNodeServerAddrs[2], 3).Setup(ctx)
-		time.Sleep(5 * time.Second)
 
 		go datanode.NewDataNodeServer("localhost:9000").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9001").Setup(ctx)
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
+
+		// wait for setup
 		time.Sleep(5 * time.Second)
 
 		c := client.NewClient(false)
-		data, err := ioutil.ReadFile(localPath)
+		data, err := os.ReadFile(localPath)
 		Expect(err).To(BeNil())
 		err = c.Put(localPath, remotePath)
 		Expect(err).To(BeNil())
@@ -127,11 +131,10 @@ var _ = Describe("CRASH TESTS", func() {
 
 		time.Sleep(5 * time.Second) // for sync read
 		cancelFuncTarget()
-		time.Sleep(5 * time.Second) // for new leader
 
 		err = c.Get(remotePath, localCopyPath)
 		Expect(err).To(BeNil())
-		dataCopy, err := ioutil.ReadFile(localCopyPath)
+		dataCopy, err := os.ReadFile(localCopyPath)
 		Expect(err).To(BeNil())
 		Expect(bytes.Equal(dataCopy, data)).To(BeTrue())
 
