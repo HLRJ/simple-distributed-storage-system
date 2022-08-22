@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	zipkingrpc "github.com/openzipkin/zipkin-go/middleware/grpc"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -12,7 +13,14 @@ import (
 )
 
 func ConnectToTargetDataNode(addr string) (protos.DataNodeClient, *grpc.ClientConn, error) {
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	//zipkin
+	tracer, r, err := NewZipkinTracer(ZIPKIN_HTTP_ENDPOINT, "ConnectToTargetDataNode", addr)
+	defer r.Close()
+	if err != nil {
+		log.Println(err)
+		return nil, nil, nil
+	}
+	conn, err := grpc.Dial(addr, grpc.WithStatsHandler(zipkingrpc.NewClientHandler(tracer)), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -20,7 +28,14 @@ func ConnectToTargetDataNode(addr string) (protos.DataNodeClient, *grpc.ClientCo
 }
 
 func ConnectToTargetNameNode(addr string, readonly bool) (protos.NameNodeClient, *grpc.ClientConn, error) {
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	//zipkin
+	tracer, r, err := NewZipkinTracer(ZIPKIN_HTTP_ENDPOINT, "ConnectToTargetNameNode", addr)
+	defer r.Close()
+	if err != nil {
+		log.Println(err)
+		return nil, nil, nil
+	}
+	conn, err := grpc.Dial(addr, grpc.WithStatsHandler(zipkingrpc.NewClientHandler(tracer)), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, nil, err
 	}
