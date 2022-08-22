@@ -6,6 +6,7 @@ import (
 	"google.golang.org/grpc"
 	"net"
 	"os"
+	"simple-distributed-storage-system/src/datanode/lsmtree"
 	"simple-distributed-storage-system/src/protos"
 	"simple-distributed-storage-system/src/utils"
 	"time"
@@ -15,6 +16,7 @@ func NewDataNodeServer(addr string) *dataNodeServer {
 	return &dataNodeServer{
 		addr:        addr,
 		blockNumber: 0,
+		lstmtree:    lsmtree.NewLsmtree("/tmp/gfs/chunks/"+addr+"/", 6400, 128, 10),
 	}
 }
 
