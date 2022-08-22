@@ -15,3 +15,7 @@ func Min(a, b uint64) int {
 		return int(b)
 	}
 }
+
+func IsDir(path string) bool {
+	return path[len(path)-1] == '/'
+}

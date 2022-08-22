@@ -54,10 +54,6 @@ type nameNodeServer struct {
 	registrationInfo registrationInfo
 }
 
-func isDir(path string) bool {
-	return path[len(path)-1] == '/'
-}
-
 func (s *nameNodeServer) syncRead(ctx context.Context) {
 	for {
 		select {

@@ -82,3 +82,7 @@ docker run -d --network=host vgalaxy/datanode -addr localhost:9002
 - 当 datanode 重新注册时，namenode 会认为该 datanode 之前所对应 loc 的数据全部丢失
   - 这也是引入 loc 作为虚拟地址的原因
 - 上述对 datanode 的选择均采取随机的方式
+
+### connection
+
+- client 仅会在调用服务前检查与现有 namenode 的连接，在调用过程中若连接中断则无法切换

@@ -2,8 +2,8 @@ package commands
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"os"
 )
 
 var rootCmd = &cobra.Command{
@@ -13,7 +13,7 @@ var rootCmd = &cobra.Command{
 Complete documentation is available at https://github.com/HLRJ/simple-distributed-storage-system`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) < 1 {
-			fmt.Println("./SDSS-ctl -h for help")
+			fmt.Fprintln(os.Stderr, "SDSS-ctl -h for help")
 			return
 		}
 	},
@@ -21,6 +21,6 @@ Complete documentation is available at https://github.com/HLRJ/simple-distribute
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		log.Panic(err)
+		fmt.Fprintln(os.Stderr, err)
 	}
 }
