@@ -1,6 +1,6 @@
 # simple-distributed-storage-system
 
-2022年字节青训营大数据专场结营项目三——简易分布式存储系统实现
+[2022年字节青训营大数据专场结营项目三   Rabbit队 简易分布式存储系统实现](https://bytedancecampus1.feishu.cn/docx/doxcnfVgtyPjujq8sB1knLhfouf)
 
 ## protobuf
 
@@ -93,3 +93,14 @@ docker run -d --network=host vgalaxy/datanode -addr localhost:9002
 ### connection
 
 - client 仅会在调用服务前检查与现有 namenode 的连接，在调用过程中若连接中断则无法切换
+
+## contributing
+ see [how to pull requests](https://docs.github.com/en/pull-requests)
+- [HLRJ](https://github.com/HLRJ)
+- [V_Galaxy](https://github.com/VGalaxies)
+- [jinbo-self](https://github.com/jinbo-self)
+
+Thanks to all the people who already contributed!
+
+## license
+[SDSS](https://github.com/HLRJ/simple-distributed-storage-system) is under the MIT License. See the [LICENSE](LICENSE) file for details.
