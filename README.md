@@ -16,6 +16,12 @@ make SDSS-ctl
 ./bin/SDSS-ctl
 ```
 
+## zipkin
+
+```
+docker run -d -p 9411:9411 openzipkin/zipkin
+```
+
 ## server
 
 ```
@@ -79,6 +85,7 @@ docker run -d --network=host vgalaxy/datanode -addr localhost:9002
 - 在创建文件时，必须有 `replicaFactor` 个注册的 datanode，否则会创建失败
 - namenode 定期检查全体 datanode 的心跳
   - 若发现 datanode 离线，则对该 datanode 对应的 loc 进行数据迁移
+  - 若该 loc 对应的一个 block 数据迁移失败，则认为整体数据迁移失败
 - 当 datanode 重新注册时，namenode 会认为该 datanode 之前所对应 loc 的数据全部丢失
   - 这也是引入 loc 作为虚拟地址的原因
 - 上述对 datanode 的选择均采取随机的方式

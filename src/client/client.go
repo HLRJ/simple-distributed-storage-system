@@ -3,7 +3,6 @@ package client
 import (
 	"context"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 	"simple-distributed-storage-system/src/protos"
 	"simple-distributed-storage-system/src/utils"
 )
@@ -12,7 +11,7 @@ type client struct {
 	blockSize uint64
 	readonly  bool
 	namenode  protos.NameNodeClient
-	conn      *grpc.ClientConn // for close
+	conn      *utils.ConnHandler // for close
 }
 
 func (c *client) create(remotePath string, size uint64) error {

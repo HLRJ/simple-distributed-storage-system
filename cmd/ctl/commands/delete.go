@@ -24,6 +24,7 @@ var deleteCmd = &cobra.Command{
 		err := client.Remove(args[0])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			return
 		}
 	},
 }

@@ -24,6 +24,7 @@ var mkdirCmd = &cobra.Command{
 		err := client.Mkdir(args[0])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			return
 		}
 	},
 }

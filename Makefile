@@ -1,9 +1,11 @@
-.PHONY: all setup kill SDSS-ctl server hello proto clean
+.PHONY: all zipkin setup kill-zipkin kill SDSS-ctl server hello proto clean-data clean
 
 all: SDSS-ctl server
 
-setup: server
-	rm -rf data
+zipkin:
+	docker run -d -p 9411:9411 openzipkin/zipkin
+
+setup: clean-data zipkin server
 	./bin/namenode -addr localhost:8000 -replicaid 1 &
 	./bin/namenode -addr localhost:8001 -replicaid 2 &
 	./bin/namenode -addr localhost:8002 -replicaid 3 &
@@ -11,7 +13,11 @@ setup: server
 	./bin/datanode -addr localhost:9001 &
 	./bin/datanode -addr localhost:9002 &
 
-kill:
+kill-zipkin:
+	docker kill `docker ps -aq --filter ancestor=openzipkin/zipkin`
+	docker rm `docker ps -aq --filter ancestor=openzipkin/zipkin`
+
+kill: kill-zipkin
 	pkill namenode
 	pkill datanode
 
@@ -29,5 +35,8 @@ hello: proto
 proto:
 	go generate ./src/protos/gen.go
 
-clean:
-	rm -rf bin data
+clean-data:
+	rm -rf data
+
+clean: clean-data
+	rm -rf bin

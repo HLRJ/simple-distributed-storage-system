@@ -24,6 +24,7 @@ var getCmd = &cobra.Command{
 		err := client.Get(args[0], args[1])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			return
 		}
 	},
 }
