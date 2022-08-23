@@ -21,26 +21,25 @@ const (
 	sharedID uint64 = 128
 )
 
-func NewNameNodeServer(addr string, replicaID uint64) *nameNodeServer {
-	res := &nameNodeServer{
+func NewNameNodeServer(addr string, replicaID uint64) *namenodeServer {
+	res := &namenodeServer{
 		addr:      addr,
 		replicaID: replicaID,
-		sm: nameNodeState{
-			DataNodeLocToAddr:      make(map[int]string),
-			DataNodeAddrToLoc:      make(map[string]int),
-			FileToInfo:             make(map[string]fileInfo),
-			UUIDToDataNodeLocsInfo: make(map[uuid.UUID]map[int]bool),
+		state: namenodeState{
+			LocToInfo:  make(map[int]locInfo),
+			FileToInfo: make(map[string]fileInfo),
+			UUIDToLocs: make(map[uuid.UUID]map[int]bool),
 		},
 	}
 	// setup root path
-	res.sm.FileToInfo["/"] = fileInfo{
+	res.state.FileToInfo["/"] = fileInfo{
 		Ids:  []uuid.UUID{},
 		Size: 0,
 	}
 	return res
 }
 
-func (s *nameNodeServer) Setup(ctx context.Context) {
+func (s *namenodeServer) Setup(ctx context.Context) {
 	// setup cluster
 	s.setupCluster()
 	// zipkin
@@ -83,7 +82,7 @@ func (s *nameNodeServer) Setup(ctx context.Context) {
 	}
 }
 
-func (s *nameNodeServer) setupCluster() {
+func (s *namenodeServer) setupCluster() {
 	initialMembers := make(map[uint64]string)
 	for idx, v := range consts.NameNodeServerRaftAddrs {
 		// key is the ReplicaID, ReplicaID is not allowed to be 0

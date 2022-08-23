@@ -5,13 +5,15 @@ all: SDSS-ctl server
 zipkin:
 	docker run -d -p 9411:9411 openzipkin/zipkin
 
-setup: clean-data zipkin server
+setup: server clean-data zipkin
 	./bin/namenode -addr localhost:8000 -replicaid 1 &
 	./bin/namenode -addr localhost:8001 -replicaid 2 &
 	./bin/namenode -addr localhost:8002 -replicaid 3 &
 	./bin/datanode -addr localhost:9000 &
 	./bin/datanode -addr localhost:9001 &
 	./bin/datanode -addr localhost:9002 &
+	./bin/datanode -addr localhost:9003 &
+	./bin/datanode -addr localhost:9004 &
 
 kill-zipkin:
 	docker kill `docker ps -aq --filter ancestor=openzipkin/zipkin`

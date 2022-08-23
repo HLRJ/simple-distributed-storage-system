@@ -11,14 +11,14 @@ import (
 	"strings"
 )
 
-func (s *nameNodeServer) FetchBlockAddrs(ctx context.Context, in *protos.FetchBlockAddrsRequest) (*protos.FetchBlockAddrsReply, error) {
+func (s *namenodeServer) FetchBlockAddrs(ctx context.Context, in *protos.FetchBlockAddrsRequest) (*protos.FetchBlockAddrsReply, error) {
 	s.mu.Lock()
 	defer func() {
 		s.mu.Unlock()
 	}()
 
 	// get uuids
-	info, ok := s.sm.FileToInfo[in.Path]
+	info, ok := s.state.FileToInfo[in.Path]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("path %v not exists", in.Path))
 	}
@@ -37,7 +37,7 @@ func (s *nameNodeServer) FetchBlockAddrs(ctx context.Context, in *protos.FetchBl
 	}
 
 	// get locs
-	locsInfo, ok := s.sm.UUIDToDataNodeLocsInfo[id]
+	locsInfo, ok := s.state.UUIDToLocs[id]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("uuid %v not exists", id))
 	}
@@ -52,18 +52,18 @@ func (s *nameNodeServer) FetchBlockAddrs(ctx context.Context, in *protos.FetchBl
 			fallthrough
 		case protos.FetchBlockAddrsRequestType_OP_GET:
 			if ok {
-				addr, ok := s.sm.DataNodeLocToAddr[loc]
+				info, ok := s.state.LocToInfo[loc]
 				if ok {
-					addrs = append(addrs, addr)
+					addrs = append(addrs, info.Addr)
 				}
 			}
 
 		// not existed
 		case protos.FetchBlockAddrsRequestType_OP_PUT:
 			if !ok {
-				addr, ok := s.sm.DataNodeLocToAddr[loc]
+				info, ok := s.state.LocToInfo[loc]
 				if ok {
-					addrs = append(addrs, addr)
+					addrs = append(addrs, info.Addr)
 				}
 			}
 		}
@@ -79,7 +79,7 @@ func (s *nameNodeServer) FetchBlockAddrs(ctx context.Context, in *protos.FetchBl
 	}, nil
 }
 
-func (s *nameNodeServer) RegisterDataNode(ctx context.Context, in *protos.RegisterDataNodeRequest) (*protos.RegisterDataNodeReply, error) {
+func (s *namenodeServer) RegisterDataNode(ctx context.Context, in *protos.RegisterDataNodeRequest) (*protos.RegisterDataNodeReply, error) {
 	if !s.isLeader() {
 		return nil, errors.New(fmt.Sprintf("namenode server %v is not leader", s.addr))
 	}
@@ -97,12 +97,12 @@ func (s *nameNodeServer) RegisterDataNode(ctx context.Context, in *protos.Regist
 		s.mu.Unlock()
 	}()
 
-	targetLoc := s.sm.DataNodeMaxLoc
+	targetLoc := s.state.MaxLoc
 	log.Infof("namenode server %v trying to register datanode server %v with loc %v",
 		s.addr, in.Address, targetLoc)
 
-	loc, ok := s.sm.DataNodeAddrToLoc[in.Address]
-	if ok {
+	loc, err := s.isDataNodeExist(in.Address)
+	if err == nil {
 		// delete outdated datanode server
 		if !s.removeDataNodeServer(loc, in.Address) { // active remove
 			log.Warnf("namenode server %v cannot register datanode server %v with loc %v",
@@ -112,19 +112,20 @@ func (s *nameNodeServer) RegisterDataNode(ctx context.Context, in *protos.Regist
 	}
 
 	// update addr <-> loc
-	s.sm.DataNodeAddrToLoc[in.Address] = targetLoc
-	s.sm.DataNodeLocToAddr[targetLoc] = in.Address
+	s.state.LocToInfo[targetLoc] = locInfo{
+		Addr: in.Address,
+	}
 
 	log.Infof("namenode server %v successfully registering datanode server %v with loc %v",
 		s.addr, in.Address, targetLoc)
 
 	// increase max loc
-	s.sm.DataNodeMaxLoc++
+	s.state.MaxLoc++
 
 	return &protos.RegisterDataNodeReply{BlockSize: blockSize}, nil
 }
 
-func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (*protos.CreateReply, error) {
+func (s *namenodeServer) Create(ctx context.Context, in *protos.CreateRequest) (*protos.CreateReply, error) {
 	if !s.isLeader() {
 		return nil, errors.New(fmt.Sprintf("namenode server %v is not leader", s.addr))
 	}
@@ -137,7 +138,7 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 	log.Infof("namenode server %v create path %v", s.addr, in.Path)
 
 	// check path existence
-	_, ok := s.sm.FileToInfo[in.Path]
+	_, ok := s.state.FileToInfo[in.Path]
 	if ok {
 		return nil, errors.New(fmt.Sprintf("path %v already exists", in.Path))
 	}
@@ -153,7 +154,7 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 		// include '/'
 		parentDir = in.Path[:index+1]
 	}
-	_, ok = s.sm.FileToInfo[parentDir]
+	_, ok = s.state.FileToInfo[parentDir]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("parent dir %v not exists, create path %v fails", parentDir, in.Path))
 	}
@@ -166,14 +167,14 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 		uuids = append(uuids, id)
 		log.Infof("block #%v -> uuid %v", i, id)
 	}
-	s.sm.FileToInfo[in.Path] = fileInfo{
+	s.state.FileToInfo[in.Path] = fileInfo{
 		Ids:  uuids,
 		Size: in.Size,
 	}
 
 	// alloc locs for uuid
 	for _, id := range uuids {
-		locs, err := randomChooseLocs(s.fetchAllLocs(), replicaFactor)
+		locs, err := s.fetchLocs(s.fetchAllLocs(), replicaFactor)
 		if err != nil {
 			return nil, err
 		}
@@ -182,7 +183,7 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 		for _, locs := range locs {
 			locsInfo[locs] = false // invalid now
 		}
-		s.sm.UUIDToDataNodeLocsInfo[id] = locsInfo
+		s.state.UUIDToLocs[id] = locsInfo
 
 		log.Infof("uuid %v -> locs %v", id, locs)
 	}
@@ -190,7 +191,7 @@ func (s *nameNodeServer) Create(ctx context.Context, in *protos.CreateRequest) (
 	return &protos.CreateReply{BlockSize: blockSize}, nil
 }
 
-func (s *nameNodeServer) Open(ctx context.Context, in *protos.OpenRequest) (*protos.OpenReply, error) {
+func (s *namenodeServer) Open(ctx context.Context, in *protos.OpenRequest) (*protos.OpenReply, error) {
 	s.mu.Lock()
 	defer func() {
 		s.mu.Unlock()
@@ -199,7 +200,7 @@ func (s *nameNodeServer) Open(ctx context.Context, in *protos.OpenRequest) (*pro
 	log.Infof("namenode server %v open path %v", s.addr, in.Path)
 
 	// check file existence
-	info, ok := s.sm.FileToInfo[in.Path]
+	info, ok := s.state.FileToInfo[in.Path]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("path %v not exists", in.Path))
 	}
@@ -212,7 +213,7 @@ func (s *nameNodeServer) Open(ctx context.Context, in *protos.OpenRequest) (*pro
 	return &protos.OpenReply{BlockSize: blockSize, Blocks: uint64(len(info.Ids))}, nil
 }
 
-func (s *nameNodeServer) LocsValidityNotify(ctx context.Context, in *protos.LocsValidityNotifyRequest) (*protos.LocsValidityNotifyReply, error) {
+func (s *namenodeServer) LocsValidityNotify(ctx context.Context, in *protos.LocsValidityNotifyRequest) (*protos.LocsValidityNotifyReply, error) {
 	if !s.isLeader() {
 		return nil, errors.New(fmt.Sprintf("namenode server %v is not leader", s.addr))
 	}
@@ -230,21 +231,21 @@ func (s *nameNodeServer) LocsValidityNotify(ctx context.Context, in *protos.Locs
 
 	log.Infof("namenode server %v receive locs validity %v for uuid %v", s.addr, in.Validity, id)
 
-	locsInfo, ok := s.sm.UUIDToDataNodeLocsInfo[id]
+	locsInfo, ok := s.state.UUIDToLocs[id]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("uuid %v not exists", id))
 	}
 
 	for addr, validity := range in.Validity {
-		loc, ok := s.sm.DataNodeAddrToLoc[addr]
-		if !ok {
+		loc, err := s.isDataNodeExist(addr)
+		if err != nil {
 			log.Warnf("addr %v not exists", addr)
 		} else {
 			_, ok := locsInfo[loc]
 			if !ok {
 				log.Warnf("loc %v not exists", addr)
 			} else {
-				s.sm.UUIDToDataNodeLocsInfo[id][loc] = validity
+				s.state.UUIDToLocs[id][loc] = validity
 			}
 		}
 	}
@@ -252,7 +253,7 @@ func (s *nameNodeServer) LocsValidityNotify(ctx context.Context, in *protos.Locs
 	return &protos.LocsValidityNotifyReply{}, nil
 }
 
-func (s *nameNodeServer) FetchFileInfo(ctx context.Context, in *protos.FetchFileInfoRequest) (*protos.FetchFileInfoReply, error) {
+func (s *namenodeServer) FetchFileInfo(ctx context.Context, in *protos.FetchFileInfoRequest) (*protos.FetchFileInfoReply, error) {
 	s.mu.Lock()
 	defer func() {
 		s.mu.Unlock()
@@ -261,7 +262,7 @@ func (s *nameNodeServer) FetchFileInfo(ctx context.Context, in *protos.FetchFile
 	log.Infof("namenode server %v stat path %v", s.addr, in.Path)
 
 	// check file existence
-	info, ok := s.sm.FileToInfo[in.Path]
+	info, ok := s.state.FileToInfo[in.Path]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("path %v not exists", in.Path))
 	}
@@ -273,7 +274,7 @@ func (s *nameNodeServer) FetchFileInfo(ctx context.Context, in *protos.FetchFile
 			Size: info.Size,
 		})
 	} else { // is directory
-		for file, info := range s.sm.FileToInfo {
+		for file, info := range s.state.FileToInfo {
 			if strings.HasPrefix(file, in.Path) {
 				infos = append(infos, &protos.FileInfo{
 					Name: file,
@@ -286,7 +287,7 @@ func (s *nameNodeServer) FetchFileInfo(ctx context.Context, in *protos.FetchFile
 	return &protos.FetchFileInfoReply{Infos: infos}, nil
 }
 
-func (s *nameNodeServer) Rename(ctx context.Context, in *protos.RenameRequest) (*protos.RenameReply, error) {
+func (s *namenodeServer) Rename(ctx context.Context, in *protos.RenameRequest) (*protos.RenameReply, error) {
 	if !s.isLeader() {
 		return nil, errors.New(fmt.Sprintf("namenode server %v is not leader", s.addr))
 	}
@@ -299,14 +300,14 @@ func (s *nameNodeServer) Rename(ctx context.Context, in *protos.RenameRequest) (
 	log.Infof("namenode server %v trying to rename %v -> %v", s.addr, in.OldPath, in.NewPath)
 
 	// check path existence
-	info, ok := s.sm.FileToInfo[in.OldPath]
+	info, ok := s.state.FileToInfo[in.OldPath]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("path %v not exists", in.OldPath))
 	}
 
 	if !utils.IsDir(in.OldPath) && !utils.IsDir(in.NewPath) {
-		delete(s.sm.FileToInfo, in.OldPath)
-		s.sm.FileToInfo[in.NewPath] = info
+		delete(s.state.FileToInfo, in.OldPath)
+		s.state.FileToInfo[in.NewPath] = info
 	} else {
 		return nil, errors.New("only support rename from file to file")
 	}
@@ -314,6 +315,6 @@ func (s *nameNodeServer) Rename(ctx context.Context, in *protos.RenameRequest) (
 	return &protos.RenameReply{}, nil
 }
 
-func (s *nameNodeServer) IsLeader(ctx context.Context, in *protos.IsLeaderRequest) (*protos.IsLeaderReply, error) {
+func (s *namenodeServer) IsLeader(ctx context.Context, in *protos.IsLeaderRequest) (*protos.IsLeaderReply, error) {
 	return &protos.IsLeaderReply{Res: s.isLeader()}, nil
 }

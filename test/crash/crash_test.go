@@ -100,6 +100,7 @@ var _ = Describe("CRASH TESTS", func() {
 		Expect(err).To(BeNil())
 
 		cancelFuncTarget()
+		time.Sleep(5 * time.Second) // wait for cancel
 		go datanode.NewDataNodeServer("localhost:9002").Setup(ctx)
 		time.Sleep(5 * time.Second) // for registration
 
