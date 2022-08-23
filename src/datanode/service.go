@@ -9,7 +9,7 @@ import (
 )
 
 // Read 读文件
-func (s *dataNodeServer) Read(ctx context.Context, req *protos.ReadRequest) (*protos.ReadReply, error) {
+func (s *datanodeServer) Read(ctx context.Context, req *protos.ReadRequest) (*protos.ReadReply, error) {
 	id := uuid.New()
 	err := id.UnmarshalBinary(req.Uuid)
 	if err != nil {
@@ -27,7 +27,7 @@ func (s *dataNodeServer) Read(ctx context.Context, req *protos.ReadRequest) (*pr
 }
 
 // Write 写入文件到磁盘
-func (s *dataNodeServer) Write(ctx context.Context, req *protos.WriteRequest) (*protos.WriteReply, error) {
+func (s *datanodeServer) Write(ctx context.Context, req *protos.WriteRequest) (*protos.WriteReply, error) {
 	id := uuid.New()
 	err := id.UnmarshalBinary(req.Uuid)
 	if err != nil {
@@ -53,12 +53,12 @@ func (s *dataNodeServer) Write(ctx context.Context, req *protos.WriteRequest) (*
 }
 
 // HeartBeat 返回心跳包
-func (s *dataNodeServer) HeartBeat(ctx context.Context, in *protos.HeartBeatRequest) (*protos.HeartBeatReply, error) {
+func (s *datanodeServer) HeartBeat(ctx context.Context, in *protos.HeartBeatRequest) (*protos.HeartBeatReply, error) {
 	return &protos.HeartBeatReply{BlockNumber: s.blockNumber}, nil
 }
 
 // Remove 删除文件
-func (s *dataNodeServer) Remove(ctx context.Context, req *protos.RemoveRequest) (*protos.RemoveReply, error) {
+func (s *datanodeServer) Remove(ctx context.Context, req *protos.RemoveRequest) (*protos.RemoveReply, error) {
 	id := uuid.New()
 	err := id.UnmarshalBinary(req.Uuid)
 	if err != nil {

@@ -12,13 +12,13 @@ import (
 type StateMachine struct {
 	ShardID   uint64
 	ReplicaID uint64
-	State     nameNodeState
+	State     namenodeState
 }
 
 func (s *StateMachine) Update(entry sm.Entry) (sm.Result, error) {
 	r := bytes.NewBuffer(entry.Cmd)
 	decoder := gob.NewDecoder(r)
-	var state nameNodeState
+	var state namenodeState
 	err := decoder.Decode(&state)
 	if err != nil {
 		log.Panic(err)
@@ -57,7 +57,7 @@ func (s *StateMachine) RecoverFromSnapshot(reader io.Reader, files []sm.Snapshot
 	}
 	r := bytes.NewBuffer(data)
 	decoder := gob.NewDecoder(r)
-	var state nameNodeState
+	var state namenodeState
 	err = decoder.Decode(&state)
 	if err != nil {
 		log.Panic(err)
@@ -74,11 +74,10 @@ func NewStateMachine(shardID uint64, replicaID uint64) sm.IStateMachine {
 	return &StateMachine{
 		ShardID:   shardID,
 		ReplicaID: replicaID,
-		State: nameNodeState{
-			DataNodeLocToAddr:      make(map[int]string),
-			DataNodeAddrToLoc:      make(map[string]int),
-			FileToInfo:             make(map[string]fileInfo),
-			UUIDToDataNodeLocsInfo: make(map[uuid.UUID]map[int]bool),
+		State: namenodeState{
+			LocToInfo:  make(map[int]locInfo),
+			FileToInfo: make(map[string]fileInfo),
+			UUIDToLocs: make(map[uuid.UUID]map[int]bool),
 		},
 	}
 }

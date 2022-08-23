@@ -8,9 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/lni/dragonboat/v4"
 	log "github.com/sirupsen/logrus"
-	"math/rand"
 	"simple-distributed-storage-system/src/protos"
 	"simple-distributed-storage-system/src/utils"
+	"sort"
 	"sync"
 	"time"
 )
@@ -29,12 +29,16 @@ type fileInfo struct {
 	Size uint64
 }
 
-type nameNodeState struct {
-	DataNodeMaxLoc         int
-	DataNodeLocToAddr      map[int]string
-	DataNodeAddrToLoc      map[string]int
-	FileToInfo             map[string]fileInfo
-	UUIDToDataNodeLocsInfo map[uuid.UUID]map[int]bool
+type locInfo struct {
+	Addr   string
+	Blocks uint64
+}
+
+type namenodeState struct {
+	MaxLoc     int
+	LocToInfo  map[int]locInfo
+	FileToInfo map[string]fileInfo
+	UUIDToLocs map[uuid.UUID]map[int]bool
 }
 
 type registrationInfo struct {
@@ -42,19 +46,19 @@ type registrationInfo struct {
 	addr    string
 }
 
-type nameNodeServer struct {
+type namenodeServer struct {
 	protos.UnimplementedNameNodeServer
 
 	mu        sync.Mutex
 	addr      string
 	replicaID uint64
 	nh        *dragonboat.NodeHost
-	sm        nameNodeState
+	state     namenodeState
 
 	registrationInfo registrationInfo
 }
 
-func (s *nameNodeServer) syncRead(ctx context.Context) {
+func (s *namenodeServer) syncRead(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -63,7 +67,7 @@ func (s *nameNodeServer) syncRead(ctx context.Context) {
 
 		case <-time.After(syncReadDuration * time.Second):
 			if s.isLeader() {
-				log.Infof("namenode server %v is leader, skip sync read, now state %v", s.addr, s.sm)
+				log.Infof("namenode server %v is leader, skip sync read, now state %v", s.addr, s.state)
 				break // not return
 			}
 
@@ -82,7 +86,7 @@ func (s *nameNodeServer) syncRead(ctx context.Context) {
 	}
 }
 
-func (s *nameNodeServer) syncPropose() {
+func (s *namenodeServer) syncPropose() {
 	cs := s.nh.GetNoOPSession(sharedID)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	_, err := s.nh.SyncPropose(ctx, cs, s.encodeState())
@@ -96,7 +100,7 @@ func (s *nameNodeServer) syncPropose() {
 	}
 }
 
-func (s *nameNodeServer) isLeader() bool {
+func (s *namenodeServer) isLeader() bool {
 	id, _, valid, err := s.nh.GetLeaderID(sharedID)
 	if err != nil {
 		return false
@@ -107,10 +111,10 @@ func (s *nameNodeServer) isLeader() bool {
 	return false
 }
 
-func (s *nameNodeServer) encodeState() []byte {
+func (s *namenodeServer) encodeState() []byte {
 	w := new(bytes.Buffer)
 	encoder := gob.NewEncoder(w)
-	err := encoder.Encode(s.sm)
+	err := encoder.Encode(s.state)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -118,61 +122,86 @@ func (s *nameNodeServer) encodeState() []byte {
 	return w.Bytes()
 }
 
-func (s *nameNodeServer) decodeState(state []byte) {
+func (s *namenodeServer) decodeState(data []byte) {
 	log.Infof("namenode server %v decode state", s.addr)
-	r := bytes.NewBuffer(state)
+	r := bytes.NewBuffer(data)
 	decoder := gob.NewDecoder(r)
-	var sm nameNodeState
-	err := decoder.Decode(&sm)
+	var state namenodeState
+	err := decoder.Decode(&state)
 	if err != nil {
 		log.Panic(err)
 	}
-	s.sm = sm
+	s.state = state
 }
 
-func randomChooseLocs(locs []int, count int) ([]int, error) {
+func (s *namenodeServer) isDataNodeExist(addr string) (int, error) {
+	for loc, info := range s.state.LocToInfo {
+		if info.Addr == addr {
+			return loc, nil
+		}
+	}
+	return 0, errors.New("not found")
+}
+
+func (s *namenodeServer) fetchLocs(locs []int, count int) ([]int, error) {
 	if len(locs) < count {
 		return nil, errors.New("insufficient locs")
 	}
 
-	rand.Seed(time.Now().Unix())
-	rand.Shuffle(len(locs), func(i int, j int) {
-		locs[i], locs[j] = locs[j], locs[i]
+	type tmpLocInfo struct {
+		loc    int
+		blocks uint64
+	}
+
+	var tmp []tmpLocInfo
+	for _, loc := range locs {
+		info, ok := s.state.LocToInfo[loc]
+		if ok {
+			tmp = append(tmp, tmpLocInfo{
+				loc:    loc,
+				blocks: info.Blocks,
+			})
+		} else {
+			if !s.registrationInfo.context || loc != s.state.MaxLoc {
+				return nil, errors.New("broken invariant")
+			}
+			tmp = append(tmp, tmpLocInfo{
+				loc:    loc,
+				blocks: 0,
+			})
+		}
+	}
+
+	sort.Slice(tmp, func(i, j int) bool {
+		return tmp[i].blocks < tmp[j].blocks
 	})
 
-	result := make([]int, 0, count)
-	for index, value := range locs {
-		if index == count {
-			break
-		}
-		result = append(result, value)
+	var res []int
+	for i := 0; i < count; i++ {
+		res = append(res, tmp[i].loc)
 	}
-	return result, nil
+	return res, nil
 }
 
-func (s *nameNodeServer) fetchAllLocs() []int {
-	index := 0
-	locs := make([]int, len(s.sm.DataNodeLocToAddr))
-	for loc := range s.sm.DataNodeLocToAddr {
-		locs[index] = loc
-		index++
+func (s *namenodeServer) fetchAllLocs() []int {
+	locs := make([]int, 0)
+	for loc, _ := range s.state.LocToInfo {
+		locs = append(locs, loc)
 	}
 	if s.registrationInfo.context {
 		// the loc for the latest registered datanode
-		locs = append(locs, s.sm.DataNodeMaxLoc)
+		locs = append(locs, s.state.MaxLoc)
 	}
 	return locs
 }
 
-func (s *nameNodeServer) removeDataNodeServer(loc int, addr string) bool {
+func (s *namenodeServer) removeDataNodeServer(loc int, addr string) bool {
 	log.Infof("namenode server %v trying to remove datanode server %v with loc %v", s.addr, addr, loc)
 
 	// start data migration
 	if s.dataMigration(loc) {
 		// delete addr <-> loc
-		delete(s.sm.DataNodeLocToAddr, loc)
-		delete(s.sm.DataNodeAddrToLoc, addr)
-
+		delete(s.state.LocToInfo, loc)
 		log.Infof("namenode server %v successfully removing datanode server %v with loc %v", s.addr, addr, loc)
 		return true
 	}
@@ -181,11 +210,11 @@ func (s *nameNodeServer) removeDataNodeServer(loc int, addr string) bool {
 	return false
 }
 
-func (s *nameNodeServer) dataMigration(loc int) bool {
+func (s *namenodeServer) dataMigration(loc int) bool {
 	log.Infof("namenode server %v start data migration for loc %v", s.addr, loc)
 	failed := false
 
-	for id, locsInfo := range s.sm.UUIDToDataNodeLocsInfo {
+	for id, locsInfo := range s.state.UUIDToLocs {
 		valid, ok := locsInfo[loc]
 		if ok && valid {
 			log.Infof("uuid %v -> locs %v contains %v", id, locsInfo, loc)
@@ -202,7 +231,7 @@ func (s *nameNodeServer) dataMigration(loc int) bool {
 			log.Infof("uuid %v -> fetch candidates %v", id, candidates)
 
 			// random choose one
-			res, err := randomChooseLocs(candidates, 1)
+			res, err := s.fetchLocs(candidates, 1)
 			if err != nil {
 				log.Warn(err)
 				log.Warnf("unable to migrate data for %v", id)
@@ -213,14 +242,16 @@ func (s *nameNodeServer) dataMigration(loc int) bool {
 			// get addr
 			toLoc := res[0]
 			var toAddr string
-			if toLoc == s.sm.DataNodeMaxLoc {
+			if toLoc == s.state.MaxLoc {
 				toAddr = s.registrationInfo.addr
 			} else {
-				toAddr, ok = s.sm.DataNodeLocToAddr[toLoc]
+				info, ok := s.state.LocToInfo[toLoc]
 				if !ok {
 					log.Warnf("unable to migrate data for %v", id)
 					failed = true
 					break
+				} else {
+					toAddr = info.Addr
 				}
 			}
 
@@ -239,11 +270,14 @@ func (s *nameNodeServer) dataMigration(loc int) bool {
 			}
 
 			// get addr
-			fromAddr, ok := s.sm.DataNodeLocToAddr[fromLoc]
+			var fromAddr string
+			info, ok := s.state.LocToInfo[fromLoc]
 			if !ok {
 				log.Warnf("unable to migrate data for %v", id)
 				failed = true
 				break
+			} else {
+				fromAddr = info.Addr
 			}
 
 			log.Infof("uuid %v -> copy from %v to %v", id, fromAddr, toAddr)
@@ -292,15 +326,15 @@ func (s *nameNodeServer) dataMigration(loc int) bool {
 			conn.Close()
 
 			// modify uuidToDataNodeLocsInfo
-			delete(s.sm.UUIDToDataNodeLocsInfo[id], loc)
-			s.sm.UUIDToDataNodeLocsInfo[id][toLoc] = true
+			delete(s.state.UUIDToLocs[id], loc)
+			s.state.UUIDToLocs[id][toLoc] = true
 		}
 	}
 
 	return !failed
 }
 
-func (s *nameNodeServer) heartbeatTicker(ctx context.Context) {
+func (s *namenodeServer) heartbeatTicker(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -317,8 +351,9 @@ func (s *nameNodeServer) heartbeatTicker(ctx context.Context) {
 
 			locs := s.fetchAllLocs()
 			for _, loc := range locs {
-				addr, ok := s.sm.DataNodeLocToAddr[loc]
+				info, ok := s.state.LocToInfo[loc]
 				if ok {
+					addr := info.Addr
 					datanode, conn, err := utils.ConnectToTargetDataNode(addr)
 					if err != nil {
 						// delete unreachable datanode server
@@ -328,13 +363,18 @@ func (s *nameNodeServer) heartbeatTicker(ctx context.Context) {
 						continue
 					}
 
-					// TODO: block number
-					_, err = datanode.HeartBeat(context.Background(), &protos.HeartBeatRequest{})
+					reply, err := datanode.HeartBeat(context.Background(), &protos.HeartBeatRequest{})
 					if err != nil {
 						// delete unreachable datanode server
 						log.Warn(err)
 						log.Infof("namenode server %v find datanode %v unreachable", s.addr, addr)
 						s.removeDataNodeServer(loc, addr) // passive remove
+					} else {
+						// update block number
+						s.state.LocToInfo[loc] = locInfo{
+							Addr:   addr,
+							Blocks: reply.BlockNumber,
+						}
 					}
 					conn.Close()
 				}

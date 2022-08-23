@@ -13,14 +13,14 @@ import (
 	"time"
 )
 
-func NewDataNodeServer(addr string) *dataNodeServer {
-	return &dataNodeServer{
+func NewDataNodeServer(addr string) *datanodeServer {
+	return &datanodeServer{
 		addr:        addr,
 		blockNumber: 0,
 	}
 }
 
-func (s *dataNodeServer) Setup(ctx context.Context) {
+func (s *datanodeServer) Setup(ctx context.Context) {
 	// create local fs
 	err := os.MkdirAll(s.localFileSystemRoot(), os.ModePerm)
 	if err != nil {
