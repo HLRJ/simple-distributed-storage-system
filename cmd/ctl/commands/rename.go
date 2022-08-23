@@ -24,6 +24,7 @@ var renameCmd = &cobra.Command{
 		err := client.Rename(args[0], args[1])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			return
 		}
 	},
 }

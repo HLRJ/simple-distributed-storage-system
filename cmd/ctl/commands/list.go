@@ -27,6 +27,7 @@ var listCmd = &cobra.Command{
 		infos, err := client.List(args[0])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			return
 		}
 
 		sort.Slice(infos, func(i, j int) bool {

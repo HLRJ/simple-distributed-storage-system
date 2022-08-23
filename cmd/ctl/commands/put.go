@@ -24,6 +24,7 @@ var putCmd = &cobra.Command{
 		err := client.Put(args[0], args[1])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			return
 		}
 	},
 }

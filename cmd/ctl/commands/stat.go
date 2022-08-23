@@ -25,6 +25,7 @@ var statCmd = &cobra.Command{
 		info, err := client.Stat(args[0])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			return
 		}
 
 		title := color.New(color.Bold, color.Underline)
