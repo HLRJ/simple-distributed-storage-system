@@ -2,8 +2,6 @@ package datanode
 
 import (
 	"context"
-	"fmt"
-	zipkingrpc "github.com/openzipkin/zipkin-go/middleware/grpc"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"net"
@@ -38,8 +36,7 @@ func (s *dataNodeServer) Setup(ctx context.Context) {
 	if err != nil {
 		log.Panic(err)
 	}
-
-	server := grpc.NewServer(grpc.StatsHandler(zipkingrpc.NewServerHandler(tracer)))
+	server := grpc.NewServer()
 	protos.RegisterDataNodeServer(server, s)
 
 	go func() {

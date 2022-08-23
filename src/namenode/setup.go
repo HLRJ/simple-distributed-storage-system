@@ -7,14 +7,12 @@ import (
 	"github.com/lni/dragonboat/v4"
 	"github.com/lni/dragonboat/v4/config"
 	"github.com/lni/dragonboat/v4/logger"
-	zipkingrpc "github.com/openzipkin/zipkin-go/middleware/grpc"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"net"
 	"path/filepath"
 	"simple-distributed-storage-system/src/consts"
 	"simple-distributed-storage-system/src/protos"
-	"simple-distributed-storage-system/src/utils"
 )
 
 const (
@@ -55,7 +53,7 @@ func (s *nameNodeServer) Setup(ctx context.Context) {
 	if err != nil {
 		log.Panic(err)
 	}
-	server := grpc.NewServer(grpc.StatsHandler(zipkingrpc.NewServerHandler(tracer)))
+	server := grpc.NewServer()
 	protos.RegisterNameNodeServer(server, s)
 
 	go func() {
