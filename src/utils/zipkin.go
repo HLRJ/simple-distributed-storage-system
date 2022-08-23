@@ -10,13 +10,13 @@ const (
 	ZIPKIN_HTTP_ENDPOINT = "http://127.0.0.1:9411/api/v2/spans"
 )
 
-// NewZipkinTracer creat a zipkin Tracer
+// NewZipkinTracer create a zipkin tracer
 func NewZipkinTracer(url, serviceName, hostPort string) (*zipkin.Tracer, reporter.Reporter, error) {
 
-	// init zipkin reporter
+	// Initialize the zipkin reporter
 	r := httpreport.NewReporter(url)
 
-	//creat a endpoint，used to identify the current service, service name: service address and port
+	// Create an endpoint，used to identify the current service, service name: service address and port
 	endpoint, err := zipkin.NewEndpoint(serviceName, hostPort)
 	if err != nil {
 		return nil, r, err

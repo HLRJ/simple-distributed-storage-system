@@ -43,12 +43,11 @@ func NewNameNodeServer(addr string, replicaID uint64) *nameNodeServer {
 func (s *nameNodeServer) Setup(ctx context.Context) {
 	// setup cluster
 	s.setupCluster()
-	//zipkin
-	tracer, r, err := utils.NewZipkinTracer(utils.ZIPKIN_HTTP_ENDPOINT, fmt.Sprintf("%sNameNode", s.addr), s.addr)
+	// zipkin
+	tracer, r, err := utils.NewZipkinTracer(utils.ZIPKIN_HTTP_ENDPOINT, fmt.Sprintf("NameNode-Server-%s", s.addr), s.addr)
 	defer r.Close()
 	if err != nil {
-		log.Println(err)
-		return
+		log.Panic(err)
 	}
 	// setup namenode server
 	log.Infof("starting namenode server at %v", s.addr)
