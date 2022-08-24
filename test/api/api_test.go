@@ -252,10 +252,14 @@ var _ = Describe("API TESTS", func() {
 		Expect(err).To(BeNil())
 
 		Expect(len(fileInfos)).To(Equal(2))
-		// TODO: order
-		Expect(fileInfos[0].Size).To(Equal(uint64(0)))
-		Expect(fileInfos[0].Name).To(Equal(remoteDir))
-		Expect(fileInfos[1].Size).To(Equal(uint64(len(data))))
-		Expect(fileInfos[1].Name).To(Equal(remotePathWithDir))
+		if fileInfos[0].Size == uint64(0) && fileInfos[0].Name == remoteDir &&
+			fileInfos[1].Size == uint64(len(data)) && fileInfos[1].Name == remotePathWithDir {
+			return
+		}
+		if fileInfos[1].Size == uint64(0) && fileInfos[1].Name == remoteDir &&
+			fileInfos[0].Size == uint64(len(data)) && fileInfos[0].Name == remotePathWithDir {
+			return
+		}
+		Fail("the result of LIST is mismatching")
 	})
 })
