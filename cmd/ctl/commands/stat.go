@@ -18,7 +18,7 @@ var statCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) < 1 {
 			fmt.Fprintln(os.Stderr, "usage: Stat [remote_file_path]")
-			return
+			os.Exit(1)
 		}
 
 		client := client.NewClient(true)
@@ -26,7 +26,7 @@ var statCmd = &cobra.Command{
 		info, err := client.Stat(args[0])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			return
+			os.Exit(1)
 		}
 
 		title := color.New(color.Bold, color.Underline)
