@@ -16,7 +16,7 @@ var getCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) < 2 {
 			fmt.Fprintln(os.Stderr, "usage: Get [remote_file_path] [local_file_path]")
-			return
+			os.Exit(1)
 		}
 
 		client := client.NewClient(true)
@@ -24,7 +24,7 @@ var getCmd = &cobra.Command{
 		err := client.Get(args[0], args[1])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			return
+			os.Exit(1)
 		}
 	},
 }

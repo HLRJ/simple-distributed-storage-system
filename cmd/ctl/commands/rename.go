@@ -16,7 +16,7 @@ var renameCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) < 2 {
 			fmt.Fprintln(os.Stderr, "usage: Rename [rename_src_path] [rename_dest_path]")
-			return
+			os.Exit(1)
 		}
 
 		client := client.NewClient(false)
@@ -24,7 +24,7 @@ var renameCmd = &cobra.Command{
 		err := client.Rename(args[0], args[1])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			return
+			os.Exit(1)
 		}
 	},
 }

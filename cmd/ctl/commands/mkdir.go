@@ -16,7 +16,7 @@ var mkdirCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) < 1 {
 			fmt.Fprintln(os.Stderr, "usage: Mkdir [remote_file_path]")
-			return
+			os.Exit(1)
 		}
 
 		client := client.NewClient(false)
@@ -24,7 +24,7 @@ var mkdirCmd = &cobra.Command{
 		err := client.Mkdir(args[0])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			return
+			os.Exit(1)
 		}
 	},
 }

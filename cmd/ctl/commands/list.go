@@ -20,7 +20,7 @@ var listCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) < 1 {
 			fmt.Fprintln(os.Stderr, "usage: List [remote_file_path]")
-			return
+			os.Exit(1)
 		}
 
 		client := client.NewClient(true)
@@ -28,7 +28,7 @@ var listCmd = &cobra.Command{
 		infos, err := client.List(args[0])
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			return
+			os.Exit(1)
 		}
 
 		sort.Slice(infos, func(i, j int) bool {
