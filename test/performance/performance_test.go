@@ -45,10 +45,8 @@ var _ = Describe("PERFORMANCE TESTS", func() {
 		time.Sleep(5 * time.Second)
 	})
 
-	localPath := "../../LICENSE"
-	localCopyPath := "/tmp/LICENSE"
+	localDir := "/tmp/doc/"
 	remoteDir := "/doc/"
-	remotePathWithDir := "/doc/LICENSE"
 
 	It("Client APIs", func() {
 		ctx, cancelFunc := context.WithCancel(context.Background())
@@ -74,43 +72,26 @@ var _ = Describe("PERFORMANCE TESTS", func() {
 		err := c.Mkdir(remoteDir)
 		Expect(err).To(BeNil())
 
-		err = c.Put(localPath, remotePathWithDir)
+		err = os.MkdirAll(localDir, os.ModePerm)
 		Expect(err).To(BeNil())
 
 		// we sample a function repeatedly to get a statistically significant set of measurements
-		experiment.Sample(func(idx int) {
-			experiment.MeasureDuration("Get", func() {
-				err = c.Get(remotePathWithDir, localCopyPath)
-				Expect(err).To(BeNil())
-			})
-		}, gmeasure.SamplingConfig{N: 100, Duration: time.Minute})
-		// we'll sample the function up to 20 times or up to a minute, whichever comes first
-
-		experiment.Sample(func(idx int) {
-			experiment.MeasureDuration("Stat", func() {
-				_, err := c.Stat(remotePathWithDir)
-				Expect(err).To(BeNil())
-			})
-		}, gmeasure.SamplingConfig{N: 100, Duration: time.Minute})
-
-		experiment.Sample(func(idx int) {
-			experiment.MeasureDuration("List", func() {
-				_, err := c.List(remoteDir)
-				Expect(err).To(BeNil())
-			})
-		}, gmeasure.SamplingConfig{N: 100, Duration: time.Minute})
-
 		experiment.Sample(func(idx int) {
 			suffix := randomString(32)
 
 			tempFile, err := os.CreateTemp("", suffix)
 			Expect(err).To(BeNil())
-			_, err = tempFile.WriteString(randomString(4096))
+			_, err = tempFile.WriteString(randomString(1024 * 1024))
 			Expect(err).To(BeNil())
 			tempFile.Close()
 
 			experiment.MeasureDuration("Put", func() {
 				err := c.Put(tempFile.Name(), remoteDir+suffix)
+				Expect(err).To(BeNil())
+			})
+
+			experiment.MeasureDuration("Get", func() {
+				err = c.Get(remoteDir+suffix, localDir+suffix)
 				Expect(err).To(BeNil())
 			})
 
@@ -120,6 +101,17 @@ var _ = Describe("PERFORMANCE TESTS", func() {
 				err := c.Rename(remoteDir+suffix, remoteDir+newSuffix)
 				Expect(err).To(BeNil())
 			})
-		}, gmeasure.SamplingConfig{N: 100, Duration: time.Minute})
+
+			experiment.MeasureDuration("Stat", func() {
+				_, err := c.Stat(remoteDir + newSuffix)
+				Expect(err).To(BeNil())
+			})
+
+			experiment.MeasureDuration("List", func() {
+				_, err := c.List(remoteDir)
+				Expect(err).To(BeNil())
+			})
+		}, gmeasure.SamplingConfig{N: 10, Duration: time.Minute})
+		// we'll sample the function up to 10 times or up to a minute, whichever comes first
 	})
 })
