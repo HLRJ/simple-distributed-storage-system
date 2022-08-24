@@ -16,6 +16,14 @@ func Min(a, b uint64) int {
 	}
 }
 
+func Max(a, b uint64) int {
+	if a < b {
+		return int(b)
+	} else {
+		return int(a)
+	}
+}
+
 func IsDir(path string) bool {
 	return path[len(path)-1] == '/'
 }

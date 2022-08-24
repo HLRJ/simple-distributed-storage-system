@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"os"
 	"simple-distributed-storage-system/src/client"
+	"simple-distributed-storage-system/src/utils"
 	"sort"
 	"strings"
 )
@@ -34,7 +35,7 @@ var listCmd = &cobra.Command{
 			return strings.Compare(infos[i].Name, infos[j].Name) < 0
 		})
 		title := color.New(color.Bold, color.Underline)
-		gap := len(infos[len(infos)-1].Name) + 1
+		gap := utils.Max(uint64(len(infos[len(infos)-1].Name)), uint64(len("name")))
 		title.Printf("%-*v %v\n", gap, "name", "size (bytes)")
 		for _, info := range infos {
 			fmt.Printf("%-*v %v\n", gap, info.Name, info.Size)
