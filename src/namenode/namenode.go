@@ -359,7 +359,9 @@ func (s *namenodeServer) heartbeatTicker(ctx context.Context) {
 						// delete unreachable datanode server
 						log.Warn(err)
 						log.Infof("namenode server %v find datanode %v unreachable", s.addr, addr)
-						s.removeDataNodeServer(loc, addr) // passive remove
+						if s.removeDataNodeServer(loc, addr) { // passive remove
+							s.syncPropose()
+						}
 						continue
 					}
 
@@ -368,7 +370,9 @@ func (s *namenodeServer) heartbeatTicker(ctx context.Context) {
 						// delete unreachable datanode server
 						log.Warn(err)
 						log.Infof("namenode server %v find datanode %v unreachable", s.addr, addr)
-						s.removeDataNodeServer(loc, addr) // passive remove
+						if s.removeDataNodeServer(loc, addr) { // passive remove
+							s.syncPropose()
+						}
 					} else {
 						// update block number
 						s.state.LocToInfo[loc] = locInfo{
