@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"os"
 	"simple-distributed-storage-system/src/client"
+	"simple-distributed-storage-system/src/utils"
 )
 
 // 输入 需要获取的远程文件路径 remote_file_path
@@ -29,7 +30,7 @@ var statCmd = &cobra.Command{
 		}
 
 		title := color.New(color.Bold, color.Underline)
-		gap := len(info.Name) + 1
+		gap := utils.Max(uint64(len(info.Name)), uint64(len("name")))
 		title.Printf("%-*v %v\n", gap, "name", "size (bytes)")
 		fmt.Printf("%-*v %v\n", gap, info.Name, info.Size)
 	},
