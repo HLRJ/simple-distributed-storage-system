@@ -1,0 +1,16 @@
+version: "3"
+services:
+  #服务名称，并且这个服务名称能够在同一个网络进行访问
+  prometheus-SSDS:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+  # 链路追踪
+  jaeger-SSDS:
+    image: jaegertracing/all-in-one
+    ports:
+      - "6831:6831/udp"
+      - "16686:16686"
+  # 熔断器
+  hystrix-dashboard:
+    image:
