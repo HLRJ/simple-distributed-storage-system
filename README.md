@@ -3,8 +3,10 @@
 ## report
 
 [2022年字节青训营大数据专场结营项目三 Rabbit队 简易分布式存储系统实现](https://bytedancecampus1.feishu.cn/docx/doxcnfVgtyPjujq8sB1knLhfouf)
-## Architecture
-![Architecture](https://github.com/HLRJ/tmp_photo/blob/main/2022bytecomp/%E6%B5%81%E7%A8%8B%E5%9B%BE.jpg)
+
+## architecture
+![流程图.jpg](https://s2.loli.net/2022/08/25/wg67OAPLX5jWHQk.jpg)
+
 ## quick start
 
 ### prerequisite
